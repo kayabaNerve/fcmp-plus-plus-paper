@@ -538,8 +538,6 @@ The RPC is extended with a route to return the path for an output (by index) wit
 
 Wallets fetch the unified distribution, yet do not fetch the decoy information. Instead, they fetch the path of each selected decoy (and the actual output). Instead of calling CLSAG's prove with the decoy information, wallets would call the FCMP++ prove with the path of the output being spent. No other changes to wallets are required for full-chain membership proofs (solely for additional, wallet-optional functionality, which the changes for can be done at any time).
 
-\newpage
-
 \section{Future}
 
 Monero can deploy Seraphis, the codebase, in the future. The improvements to transaction construction, and sender-receiver communication (regarding one-time keys and shared secrets), are well-reasoned for Monero and desirable.
