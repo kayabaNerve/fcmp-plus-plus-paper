@@ -1,0 +1,553 @@
+\documentclass[]{article}
+
+\usepackage{amsmath}
+
+\title{FCMP++}
+\author{Luke "Kayaba" Parker}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+	
+	FCMP++, shortened from FCMP+SA+L, short for Full-Chain Membership Proofs + Spend Authorization + Linkability, are an accomplishment of full-set privacy over the existing RingCT protocol used within Monero. This document serves as a specification and implementation reference.
+
+\end{abstract}
+
+\section{Background}
+
+\newcommand{\hashtopoint}{\mathsf{HashToPoint}}
+
+Monero is currently planning to deploy the Seraphis upgrade, most notable for its definition as a composition which distinguishes membership from spend authorization. With that, we are allowed much more efficient membership proofs (enabling full-set privacy). RingCT, which fails to so distinguish, was considered infeasible for full-set privacy for that reason and due to how its linking tags are defined.
+
+With Seraphis, outputs are defined as $k_0 \cdot G_0 + k_1 \cdot G_1 + k_2 \cdot G_2$ with the linking tag defined as $(k_2 / k_1) \cdot J$. This allows $k_0$ to be re-randomized without malleating the linking tag.
+
+With a new definition of linking tags, it forces creation of a new anonymity set (with explicit migration) to prevent double-spending of already spent outputs (which would now be given a new linking tag if 'imported' by simply adding a $1 G_2$ term).
+
+With RingCT, outputs are defined as $O = x \cdot G$ with the linking tag defined as $x \cdot \hashtopoint(O)$. To re-randomize $x$ would be to malleate the linking tag.
+
+\section{New Output Key Definition}
+
+Since we cannot re-define the linking tags, we re-define the output key. We introduce a new generator, $T$, re-define output keys as $O = x \cdot G + y \cdot T$ (where $y = 0$ for all existing outputs), and preserve the linking tag definition of $x \cdot \hashtopoint(O)$. This causes all existing outputs to maintain their linking tags while giving us a term to re-randomize.
+
+\newpage
+
+\section{Proof Separation}
+
+Seraphis defines four distinct proofs.
+
+\begin{enumerate}
+	\item
+	Membership Proof.
+	
+	The tuple of the commitment being spent by this input and the output key associated with it is a member of the set of outputs within this blockchain.
+
+	\item "Ownership and Unspentness" (Spend Authorization and Linkability).
+	
+	The transaction created is authorized by the possessor of the private keys for the output key. The commitment spent has not been prior spent.
+	
+	\item
+	Balance Proof.
+	
+	This transaction does not create outputs worth more than the inputs spent.
+	
+	\item
+	Range Proof.
+	
+	The outputs do not overflow the order of the elliptic curve in order to cheat the balance proof.
+\end{enumerate}
+
+We appreciate and maintain these four definitions. We focus on the first two, currently jointly satisfied by CLSAG. We define one proof for the former and compose it with a new proof for the latter.
+
+\subsection{New Membership Proof}
+
+$\mathsf{OutputSet}$ is defined as a set of $(O, I, C)$ tuples (where $O$ is the output key, $I = \hashtopoint(O)$, and $C$ the amount commitment). 
+
+% $r_o, r_i, r_c, r_{r\_i}$
+For an output tuple $(O, I, C)$, the prover samples scalars $r_o, r_i, r_c$. They then prove:
+
+$\tilde{O} = O + r_o \cdot T$
+
+$\tilde{I} = I + r_i \cdot U$
+
+$\tilde{C} = C + r_c \cdot G$
+
+$R = r_i \cdot V$
+
+$(O, I, C) \in \mathsf{OutputSet}$
+
+while only publishing $\tilde{O}, \tilde{I}, \tilde{C}, R$ (the 'input tuple').
+
+This does not require knowledge of $x, y$ and accordingly can be produced by any party. Exactly how this membership proof occurs is left as a black box to the rest of these designs, yet further specified later.
+
+\subsection{New Spend Authorization and Linkability Proof}
+
+For an input tuple $\tilde{O}, \tilde{I}, \tilde{C}, R$, and linking tag $L$, prove knowledge of $x, y$ such that $O = x \cdot G + y \cdot T, I = \hashtopoint(O), \tilde{I} = I + r_i \cdot U$, and $L = x \cdot I$ (while binding to the transaction hash).
+
+We instantiate this literally with a Generalized Schnorr Protocol (https://eprint.iacr.org/2009/050).
+
+\begin{enumerate}
+	\item
+	Prover samples $r_x, r_y, r_r$ and publishes:
+	\begin{itemize}
+		\item
+		$X = x \cdot U$	
+		\item
+		$R_O = r_x \cdot G + r_y \cdot T$
+		\item
+		$R_X = r_x \cdot U$
+		\item
+		$R_R = r_r \cdot V$
+		\item
+		$R_L = r_x \cdot \tilde{I} + r_r \cdot -X$
+	\end{itemize}
+	\item
+	Verifier sends challenge $c$.
+	\item
+	Prover publishes:
+	\begin{itemize}
+		\item
+		$s_x = r_x + c \cdot x$	
+		\item
+		$s_y = r_y + c \cdot (y + r_o)$
+		\item
+		$s_r = r_r + c \cdot r_i$
+	\end{itemize}
+	\item
+	Verifier checks:
+	\begin{itemize}
+		\item
+		$R_O + c \cdot \tilde{O} == s_x \cdot G + s_y \cdot T$
+		\item
+		$R_X + c \cdot X == s_x \cdot U$
+		\item
+		$R_R + c \cdot R == s_r \cdot V$
+		\item
+		$R_L + c \cdot L == s_x \cdot \tilde{I} + s_r \cdot -X$
+	\end{itemize}
+\end{enumerate}
+
+Internally, this creates $x \cdot \tilde{I}$ (or $x \cdot I + x \cdot r_i \cdot U$), before removing the $x \cdot r_i \cdot U$ term without revealing $r_i \cdot U$ (which would enable de-re-randomizing $\tilde{I}$). We do this by revealing $X = x \cdot U$, then opening the commitment to the randomness $R = r_i \cdot V$, and scaling $X$ by the opening (calculating $r_i * x \cdot U$).
+
+\newpage
+
+\section{The Literal Membership Proof}
+
+With the proofs separated, and spend authorization satisfied, we still need membership. We prove membership over the entire output set using an arithmetic circuit verifying a Merkle tree proof. Since Merkle tree proofs have O(log n) time complexity, a proof with O(n) complexity still achieves a O(log n) solution to the problem statement.
+
+This makes the requirement a sufficiently performant, zero-knowledge proof for the satisfaction of an arithmetic circuit, yet not explicitly a SNARK (which would mandate sublinear time complexity).
+
+\subsection{Arithmetic Circuit Proof}
+
+Bulletproofs are a trustless proof already used within Monero, which can be used to prove arithmetic circuit proofs are satisfied. We solely need a hash function for the Merkle tree, the most efficient being a Pedersen hash.
+
+A Pedersen hash is a collision-resistant hash where for each word hashed, an additional term is added to a Pedersen Vector Commitment. Finding a collision implies finding the discrete log relationship of the generators used.
+
+Creating Pedersen hashes in-circuit would be too expensive. Bulletproofs offer arithmetic over the scalar field of the curve, yet Pedersen hashes produce an output over the field the curve is defined over. Accordingly, it'd require non-native arithmetic. If we instead use an elliptic curve whose scalar field is the field of the curve we're performing the hash with (and 'embedded' or 'towered' curve), we'd have a cost of 256 in-circuit multiplications per word hashed (for a 256-bit elliptic curve).
+
+We instead use Generalized Bulletproofs, a proposed modification to Bulletproofs currently undergoing work to obtain security proofs. Generalized Bulletproofs can be used to output Pedersen hashes at effectively no additional cost, although it cannot operate over its hashes (and we do need to operate over a series of hashes, due to discussing a Merkle tree). We solve this by operating over output hashes with a new Generalized Bulletproof, this one on a curve whose scalar field is the prior curve's field. This continues for each layer of the Merkle tree, and is most efficiently realizable with a curve cycle (a curve whose scalar field is the field of a curve whose scalar field is the field for the original curve). With a curve cycle, one can alternate between the two curves (and two proofs) without needing additional curves/proofs per layer.
+
+The ability to produce Pedersen hashes also enables forming challenges off partial transcripts of the witness. By defining a Pedersen hash of the first $n$ variables within the circuit, we can hash that outside of the circuit with a traditional hash function to obtain a challenge usable for the rest of the circuit. This allows interactive proofs within the circuit (due to the Fiat-Shamir transform), and with it, more efficient gadgets.
+
+For the concept of Generalized Bulletproofs, and opening a Merkle tree using Pedersen hashes with a pair of Bulletproofs over a curve cycle in such an efficient manner, please thank the authors of Curve Trees, https://eprint.iacr.org/2022/756. This proposal applies their work to RingCT and performs further optimizations via the usage of divisors, yet does not claim to be novel.
+
+\subsubsection{Alternatives}
+
+Bulletproofs and Bulletproofs+ both define commitments to the witness ($A_I, A$ respectively). These commitments are Pedersen hashes of the entire witness. If these commitments are moved into the statement, we can independently use Bulletproofs+ zk-WIP argument (or ideally a tailored version of it, as we don't need the inner-product functionality) to prove subsets of the commitment are validly formed. By defining the subsets as the variables we want hashed for the Merkle tree, we achieve Pedersen hashing with non-negligible overhead (~3x in verification time, with bandwidth scaling near-linear to the amount of hashes performed).
+
+Distinctly, we could discuss modifying the Bulletproof(+) statement to explicitly support such subsets, presumably via an additional challenge. This would have minimal overhead (an amount comparable to Generalized Bulletproofs if accomplished), be less expressive than Generalized Bulletproofs, yet largely as performant in both bandwidth and verification time.
+
+Neither of these ideas are put forth as guaranteed fallbacks at this time. Solely likely sufficiently performant alternatives if there is an issue with proving Generalized Bulletproofs secure which we can discuss researching.
+
+\subsection{Towering Curve Cycle}
+
+Since we're performing full-chain membership proofs over Monero's RingCT, and Monero's RingCT uses Ed25519, we need a curve cycle involving Ed25519. Unfortunately, a curve cycle with Ed25519 is impossible for non-trivial curves. This is due to Ed25519 having a cofactor of 8. Instead of forming a curve cycle with Ed25519, we find a prime-order curve whose scalar field is Ed25519's field, and then form a curve cycle with that. This is referred to as a towering curve cycle, due to it being a curve cycle where one curve towers (stands over, not forming a cycle with) Ed25519.
+
+tevador proposed Helios and Selene for an efficient towering curve cycle, documenting the deterministic method used to find them and their security. Please see https://gist.github.com/tevador/4524c2092178df08996487d4e272b096.
+
+\subsection{Gadgets}
+
+We define an arithmetic circuit with two parts to its statement.
+
+\begin{itemize}
+	\item
+	$a_l * a_r = a_o$
+	
+	For vectors $a_l, a_r, a_o$, $a_o$ is the vector multiplication of $a_l, a_r$.
+	\item
+	$W_l * a_l + W_r * a_r + W_o * a_o + W_v * V = c$
+	
+	For matrices $W_l, W_r, W_o, W_v$, this constraint is run for each column (where all have the same amount of columns). Defining $W_l, W_r, W_o, W_v$ as the column of $W_l, W_r, W_o, W_v$ currently relevant, $W_l * a_l, W_r * a_r, W_o * a_o$ is the inner product of the column and the vector.
+	
+	For $W_v, V$, this is defined by Bulletproofs(+) to be the Pedersen commitments accessible within the circuit and associated weights. We define $V$ as the Pedersen vector commitments, where instead of the length of a column of $W_v$ being the amount of Pedersen commitments, the length of a column is the amount of variables within the Pedersen vector commitment in question. The depth refers to which Pedersen vector commitment is currently being constrained.
+	
+	While Generalized Bulletproofs still supports Pedersen commitments, we drop the functionality from consideration and don't bother notating it due to lack of use.
+	
+	$c$ is a row of constants of length equal to the amount of columns in $W_l, W_r, W_o, W_v$. As per the matrices, we evaluate the above formula once per column (where a column of $c$ is a single value). The relevant column is a constant value in the constraint checked.
+\end{itemize}
+
+A gadget is a series of $a_l, a_r$ (and respective $a_o$) rows, columns in $W_l, W_r, W_o, W_v$, and elements in $c$. They are intended to be reusable snippets we can independently formally verify as correct/create security proofs for.
+
+\newcommand{\al}{\mathsf{a_l.push}}
+\newcommand{\ar}{\mathsf{a_r.push}}
+
+\newcommand{\all}{\mathsf{a_l.last()}}
+\newcommand{\arl}{\mathsf{a_r.last()}}
+\newcommand{\aol}{\mathsf{a_o.last()}}
+
+The following describes each gadget as necessary for human review. Pushes to $\mathsf{a_o}$ are implicit once a push to $\mathsf{a_l}, \mathsf{a_r}$ occurs. $\al(\arl)$ implies a constraint $1 ~\all + -1 ~\arl = 0$.
+
+\subsubsection{Bit}
+
+For $b$, $\al(b), \ar(b - 1)$. We then constrain $1 ~\all + -1 ~\arl = 1$ and $\aol = 0$.
+
+Over a prime field, the multiplication of any two non-zero values will be a non-zero value. Accordingly, one of the values has to be zero for the second constraint to hold true. If the left value, $b$, is zero, $b$ is a valid bit. If the right value is zero, since the right value is constrained to being the left value minus one, the left value must be one (a valid bit).
+
+\subsubsection{Equality}
+
+For $a, b$, we constrain $1 a + -1 b = 0$.
+
+By the simplification $a - b = 0$, and adding $b$ to both sides, we get $a = b$.
+
+\subsubsection{Member of List}
+
+For a claimed member of the list $m$, and the list $l$ (with length $> 0$), we define two distinct set membership gadgets.
+
+When the length of the list $l$ is $1$, list membership is the equality gadget.
+
+Else, $\al(l_0 - m)$. $\ar(l_i - m), \al(\aol) ~\forall~ 1 \le i < \mathsf{len}(l) - 1$. $\ar(l_{\mathsf{len}(l) - 1} - m)$. Constrain $\aol = 0$, and the consistency of all values pushed to $\mathsf{a_l}, \mathsf{a_r}$.
+
+This subtracts the claimed member from each item in the list, multiplying their results. Since, over a prime field, the only way to multiply to zero is to have a factor be zero, the result will only be zero if one of the subtractions resulted in zero. The only way for $a - b = 0$ is if $a = b$.
+
+\subsubsection{Tuple Member of Set}
+
+We create a Pedersen vector commitment for the list and the claimed member. We hash this to obtain weights $w$. Then, for a $n$-length tuple $(a, b, c, ...)$, we perform set membership of $a + w_0 * b + w_1 * c + ...$ over a similarly weighted list.
+
+For this to have an attack in polylogarithmic time, it'd presumably need to be converted to the birthday problem. Since changing the tuple claimed to be a member (the left-hand side) changes the effective list (each member being a potential right-hand side), the two sides aren't independent and Wagner's algorithm isn't usable to find an efficient solution.
+
+\subsubsection{Inverse}
+
+For an element $a$, $\al(a), \ar(a^{-1})$. Constrain $\aol = 1$.
+
+This also works as a proof $a$ is non-zero (as zero will not have a multiplicative inverse).
+
+\subsubsection{On Curve}
+
+For a claimed point $(x, y)$, and the curve formula of the embedded curve $y^2 = x^3 + a x^2 + b x + c$,
+
+\begin{itemize}
+	\item $\al(y), \ar(y), 1 ~y_2 + -1 ~\aol = 0$
+	\item $\al(x), \ar(x), 1 ~x_2 + -1 ~\aol = 0$
+	\item $\al(x), \ar(x), 1 ~y_3 + -1 ~\aol = 0$
+	\item $-1 ~y_2 + 1 ~x_3 + a x_2 + b x + c = 0$
+\end{itemize}
+
+\subsubsection{Evaluate Divisor}
+
+An elliptic curve divisor is a polynomial modulo the polynomial for the elliptic curve. This means it has $y^2, y, xy^i, x^j$ terms. For an elliptic curve divisor usable within constraints, which requires it present in $a_l, a_r, a_o$, or $V$, we can evaluate it for variables $x, y$. We only discuss the case where $x, y$ are public.
+
+The verifier generates the necessary powers and cross products for $x$ and $y$.
+
+For an example polynomial $a * x^2 + b * x + c$, we rewrite it as $x^2 * a + x * b + c$. With this rearrangement, it's clear how we can use $W_l * a_l + W_r * a_r + W_o * a_o + W_v * V = c$ to evaluate this without extending $a_l, a_r, a_o$. We place the $x, y$ values into $W_*$ and enable obtaining a constraint for the evaluation of the polynomial.
+
+\subsubsection{Discrete Log Proof}
+
+We use elliptic curve divisors, as posited in https://eprint.iacr.org/2022/596.
+
+For a generator $G$, both the prover and the verifier calculate $G_0 = 2^0 \cdot G, ...,G_{254} = 2^{254} \cdot G$. For a scalar for the embedded curve $s$, the prover creates a 255-bit decomposition $b_0, ..., b_{254}$. The prover creates a Pedersen vector commitment for the bits and the divisor interpolating $s \cdot G$ with the relevant powers of $G$.
+
+The verifier hashes this Pedersen vector commitment to a pair of points, $C_0, C_1$. Set $C_2 = -(C_0 + C_1)$. Set $Z$ to the polynomial $y - \lambda x$, and $z$ to $\mu$, where $\lambda, \mu$ are the slope and intercept interpolating the three points.
+
+For each $C_i$,
+
+\begin{enumerate}
+	\item The prover evaluates the divisor and runs the inverse gadget on the result. This makes $\all$ the supposed divisor evaluation and $\arl$ the inverse. The former is constrained per 4.3.7.
+	\item $\al(\arl)$.
+	\item The prover evaluate the divisor differentiated over $x$ and pushes the result to $a_r$. This is constrained per 4.3.7.
+	\item $C_{i_{eval_0}} = \aol$
+	\item TODO: $dx(A_i) / dz$, $C_{i_{eval_1}} = ~?$
+	\item $\al(C_{i_{eval_0}}), \ar(C_{i_{eval_1}})), C_{i_{eval}} = \aol$
+\end{enumerate}
+
+We finally constrain $C_{0_{eval}} + C_{1_{eval}} + C_{2_{eval}} - \sum_{i=0}^{254} (1 / (\mu - Z(G_i))) * b_i = 0$.
+
+This proves $b_0, ..., b_{254}$ is the 255-bit decomposition of $s$ where $s$ is the discrete logarithm of $s \cdot G$. It takes 255 in-circuit multiplications to calculate $b_0, ..., b_{254}$ (which are reusable in other discrete log proofs), then 3 in-circuit multiplications are used per $C_i$ (9 in total).
+
+\subsubsection{Discrete Log Proof of Knowledge}
+
+The prior gadgets takes the logarithmic derivative of $D(C_0)D(C_1)D(C_2) = \prod_{i=0}^{254}(\mu - Z(G_i))$ where $D$ is the divisor to enable evaluation with a linear combination (instead of hundreds of in-circuit multiplications).
+
+Eagen's work has an $x$-only divisor equation of $D(C)D(-C) = \prod_{i=0}^{254}(C.x - G_i.x)$. If we instead take the logarithmic derivative of that, the proof loses the ability to differentiate $G_i.x$ from $(-G_i).x$. We can use this to generate a trinary system $-1, 0, 1$ with 161 powers of $G$ ($G, 3 \cdot G, 9 \cdot G$) which generates nearly the same $2^{255}$ group, yet with only 161 trits. Since we cannot distinguish $-1$ form $1$, the prover only has to commit to them as bits, saving 94 in-circuit multiplications. It still satisfies as a proof of knowledge for the discrete log, despite not being binding to the discrete log.
+
+The actual evaluation itself is also cheaper at just 4 in-circuit multiplications due to the single challenge point.
+
+\subsubsection{Incomplete Addition}
+
+For two on-curve points with distinct $x$ coordinates (denoted $(x_0, y_0), (x_1, y_1)$), $x_2, y_2$ can be proved their sum as follows.
+
+The prover provides $\sigma$.
+
+$\al(\sigma), \ar(x_1 - x_0)$
+
+$\aol = y_1 - y_0$
+
+$\al(\sigma), \ar(x_2 - x_0)$
+
+$\aol = -y_2 - y_0$
+
+$\al(\sigma), \ar(\sigma)$
+
+$\aol = x_0 + x_1 + x_2$
+
+\subsubsection{Permissible for Hashing}
+
+In order to not have have to hash points as their $x$ and $y$ coordinates (which would require a tuple set membership invocation and increase the cost of calculating the Pedersen hash), we define an arithmetic hash such that for any $x$ coordinate, only one $y$ coordinate will be accepted. This lets us drop the $y$ coordinate without concern of the prover providing the negative $y$ coordinate (negating the discrete logarithms, enabling double spends).
+
+This cannot be used with linking tag generators, yet can be used for all other points we hash.
+
+For a pair of constants $u, v$, we define $\mathsf{permissible}$ as $\mathsf{sqrt}(u * y + v).\mathsf{is\_some}()$. We consider an $x, y$ permissible if $\mathsf{permissible}(x, y)$ and $!\mathsf{permissible}(x, -y)$. This can be checked in-circuit with just two multiplications, making it incredibly efficient.
+
+Full credit to this idea goes to the authors of Curve Trees, https://eprint.iacr.org/2022/756.
+
+\subsection{Circuit}
+
+We define two distinct layer gadgets, one for the first layer (which ensures the integrity of the tuple output), and one for all additional layers.
+
+\subsubsection{First Layer}
+
+\begin{itemize}
+	\item Define $r_o \cdot T, r_c \cdot G$ in-circuit, constrain them on curve, and prove knowledge of the discrete logarithms.
+	\item Define $r_i \cdot U$ in-circuit, constrain it on curve, and prove the bit decomposition of $r_i$ the discrete logarithm of $r_i \cdot U$ over $U$.
+	\item For the input tuple $\tilde{O}, \tilde{I}, \tilde{C}, R$, prove the $x$-coordinate of $r_o \cdot T$ distinct from the $x$-coordinate of $\tilde{O}$, the $x$-coordinate of $r_i \cdot U$ distinct from the $x$-coordinate of $\tilde{I}$, and the $x$-coordinate of $r_c \cdot G$ distinct from the $x$-coordinate of $\tilde{C}$.
+	\item Prove the bit decomposition of $r_i$ (already decomposed and validated as a bitstring) is the discrete logarithm of $R$ over $V$.
+	\item Perform incomplete addition of $\tilde{O}$ with $-(r_o \cdot T)$ to obtain $O$, $\tilde{I}$ with $-(r_i \cdot U)$ to obtain $I$, and $\tilde{C}$ with $-(r_c \cdot G)$ to obtain $C$.
+	\item Prove $O, C$ permissible for hashing.
+	\item Perform tuple set membership with $(O.x, I.x, I.y, C.x)$ within a Pedersen vector commitment. This is the hash for the next layer.
+\end{itemize}
+
+\subsubsection{Additional Layer}
+
+\begin{itemize}
+	\item Define randomness $(r_x, r_y)$ and constrain it's on curve.
+	\item Prove knowledge of the discrete logarithm of $(r_x, r_y)$.
+	\item Take the blinded Pedersen hash from the prior layer and enforce its $x$ coordinate is inequal to $r_x$. Then perform incomplete addition with $(r_x, -r_y)$.
+	
+	We do not need to check the blinded Pedersen hash is on-curve in-circuit as we can verify that out of circuit.
+	\item With the unblinded Pedersen hash's $x, y$ coordinates, prove it permissible.
+	\item Perform set membership of the unblinded Pedersen's hash $x$ coordinate over the members in a Pedersen Vector Commitment (the new blinded Pedersen hash).
+\end{itemize}
+
+\newpage
+
+\section{Functionality}
+
+With the system described, it is important to be clear on the functionality in order to fairly evaluate it.
+
+\subsection{Full-Set Privacy}
+
+This is the reason for discussing this in the first place.
+
+\subsection{Hardware Wallets}
+
+Hardware wallets maintain their support due to not needing to perform the membership proof, solely the Generalized Schnorr Protocol after the fact. The Generalized Schnorr Protocol is smaller than the current CLSAG proofs, and is accordingly assumed to be well within the allowed memory footprint. It is only one point larger than the proposed Seraphis ownership proof.
+
+\subsection{Multisig}
+
+Generalized Schnorr Protocols effectively are Schnorr signatures, as the name implies. Accordingly, they benefit from all of the great work performed on Schnorr multisignatures, and can be expected to offer low-complexity, small-constant multisignature protocols.
+
+\subsection{Outgoing View Keys}
+
+Outgoing view keys, a new private key which enables calculating linking tags for scanned outputs without possession of the private key, are inherently enabled by this proposal. Since $x, y$ are needed to spend, yet the linking tag is solely derived from $x$, $x$ becomes the shareable outgoing view key. This does require $y$ be unknown to whoever the outgoing view key is shared to, which is not the case for historical outputs (where $y = 0$).
+
+If wallets publish addresses whose public spend key is not $s \cdot G$ yet $o \cdot G + y \cdot T$, where $y$ is the effective private spend key (uniformly sampled), $o$, the outgoing view key, can be shared. This solely requires wallet software update their key handling internally, and can be done at any moment in time, by any subset of wallets, with no impact to privacy (on- or off-chain) nor network performance.
+
+\subsection{Forward Secrecy}
+
+The abstracted membership proof is defined to output a tuple with a randomness commitment $r_i \cdot V$. An adversary with a discrete log oracle can query for $r_i$, unblind $\tilde{I}$ to $I$, and then discover the spent output.
+
+If we don't output $r_i \cdot V$ yet $r_i \cdot V + r_{r\_i} \cdot T$, we can execute the following combination of a 1-round Bulletproof+ and a Generalized Schnorr Protocol.
+
+\begin{enumerate}
+	\item
+	Prover samples $r_a, r_x, r_y, r_z, r_r, \alpha, \beta, \mu, \delta$ and publishes:
+	\begin{itemize}
+		\item
+		$P = x \cdot G + r_i \cdot V + (x * r_i) \cdot U + r_a \cdot T$
+
+		\item
+		$A = \alpha \cdot G + \beta \cdot V + ((\alpha * y) + (\beta * x)) \cdot U + \delta \cdot T$
+		\item
+		$B = (\alpha * \beta) \cdot U + \mu \cdot T$
+
+		\item
+		$R_O = r_x \cdot G + r_y \cdot T$
+		\item
+		$R_P = r_z \cdot U + r_r \cdot T$
+		\item
+		$R_L = r_x \cdot \tilde{I} + r_z \cdot -U$		
+	\end{itemize}
+	\item
+	Verifier sends challenges $c, e$.
+	\item
+	Prover publishes:
+	\begin{itemize}
+		\item
+		$s_\alpha = \alpha + e \cdot x$	
+		\item
+		$s_\beta = \beta + e \cdot r_i$
+		\item
+		$s_\delta = \mu + \delta * e + r_a * (e * e)$
+
+		\item
+		$s_x = r_x + c \cdot x$	
+		\item
+		$s_y = r_y + c \cdot (y + r_o)$
+		\item
+		$s_z = r_z + c \cdot (x * r_i)$
+		\item
+		$s_a = r_r + c \cdot (r_a - (y + r_o) - r_{r\_i})$
+	\end{itemize}
+	\item
+	Verifier checks:
+	\begin{itemize}
+		\item
+		$(e * e) \cdot P + e \cdot A + B = (s_\alpha * e) \cdot G + (s_\beta * e) \cdot V + (s_\alpha * s_\beta) \cdot U + s_\delta \cdot T$
+		\item
+		$R_O + c \cdot \tilde{O} == s_x \cdot G + s_y \cdot T$
+		\item
+		$R_P + c \cdot (P - \tilde{O} - R) == s_z \cdot U + s_a \cdot T$
+		\item
+		$R_L + c \cdot L == s_x \cdot \tilde{I} + s_z \cdot -U$
+	\end{itemize}
+\end{enumerate}
+
+Instead of providing the hint $X = x \cdot U$, a one-row Bulletproof+ is used to calculate $x * r_i$. We subtract $\tilde{O}, R$ from the Bulletproof+ output ($P$) to obtain a Pedersen commitment to $x * r_i$ if and only if the $x, r_i$ variables are consistent with $\tilde{O}, R$. We then open that Pedersen commitment within the Generalized Schnorr Protocol to ensure consistency.
+
+This is forward secret per the Python script located at
+
+https://gist.github.com/kayabaNerve/e09ba62d4a6165ced006b037f1068d95.
+
+It creates an output, re-randomizes it as expected, and then performs the above protocol. It then selects a random linking tag generator, representing a random output, and uses a discrete log oracle to find solutions for every relationship. Since there are solutions for every variable, while still satisfying all commitments, any output can be shown to be 'the' output opened by the Generalized Schnorr Protocol. Accordingly, an adversary with a discrete log oracle cannot distinguish between outputs.
+
+An adversary with a discrete log oracle also cannot distinguish between an unspent non-forward-secret output and a forward-secret output. Such an adversary can only calculate what the linking tag would be if the output isn't forward secret, and wait to see if that appears (making it a spent non-forward-secret output).
+
+At six points and seven scalars, it still uses less memory to communicate than the currently used CLSAGs. That doesn't change the decompressed points use ~4x the memory as a scalar while being worked with (making it potentially roughly twice as memory intensive to sign as current CLSAGs). By first doing the Bulletproof+, then doing the Generalized Schnorr Protocol, the signer ends up with half the work in two, almost perfectly evenly sized chunks. This means it should be no more memory intensive than current CLSAGs, with future potential improvements possible (such integrating the Bulletproof+ with the Generalized Schnorr Protocol, instead of running them separately and composing their statements).
+
+\subsection{Transaction Chaining}
+
+Since the membership proof does not require knowledge of $x, y$, the membership proof can be produced after the transaction itself is signed. This would let Alice and Bob form a 2-of-2 multisig, sign a transaction spending an output sent to it (per some mutually known blinding factors), then let Alice or Bob create that output, and once it's past the 10-block lock, publish the transaction spending it without the other party's participation.
+
+We do have to ensure the message the Generalized Schnorr Protocol signs isn't binding to the membership proof however.
+
+\newpage
+
+\section{Integration}
+
+With the concepts of the proof established, and the functionality iterated, it's time to discuss how integration will be handled.
+
+\subsection{Tree}
+
+With the circuit proving an output tuple exists within a Merkle tree, we need to create the tree. The tree will be implemented in C++, with the hash function FFI'd from Rust. The external API, with regards to the blockchain, is:
+
+\begin{itemize}
+  \item Grow.
+  
+  Grow incorporates a list of $n$-leaves (themselves tuples $(O.x, I.x, I.y, C.x)$) into the tree. For a $w$-wide branch, and the rightmost branch containing $l$ leaves already, the following is done:
+  
+  \begin{enumerate}
+  	\item Hash the first $w - l$ leaves, then perform an elliptic curve addition with the existing hash.
+  	\item Hash each further set of $w$ leaves.
+  	\item For all updated/created hashes, hash their delta to update their branch's hash.
+  	\item Repeat until the tree root is updated.
+  \end{enumerate}
+
+  \item Prune.
+  
+  Prune removes a list of $n$ leaves from the tree.
+   
+  \begin{enumerate}
+   	\item For every complete branch of leaves encompassed, remove them.
+   	\item For every branch of leaves partially modified, hash the removed leaves and subtract them from the existing hash if the removed leaves is less than the remaining leaves. If the remaining leaves is less, hash those to re-calculate the hash entirely.
+   	\item For every hash whose children were modified, perform the above until the tree root is updated.
+  \end{enumerate}
+\end{itemize}
+
+\subsection{Permissibility}
+
+For the first layer, $O$ will have $T$ added until it passes permissibility. $C$ will have $G$ added until it passes permissibility. For all other layers, the blinding generator $H$ is added to the hash until it's permissible.
+
+\subsubsection{Initialization}
+
+When an instance of monerod boots with the tree code, it will immediately start indexing every block since genesis. Cryptonote outputs will be accumulated as the key, the linking tag generator, and a Pedersen commitment for the amount (with a randomness of zero). RingCT outputs will be accumulated as the key, the linking tag generator, and their Pedersen commitment.
+
+\subsubsection{Normal Operation}
+
+When a block achieves a depth of 10 (the constant 10 being from the 10-block lock), all outputs within it are used to grow the tree. On a reorganization exceeding 10 blocks, prune is called for the removed outputs. On a reorganization less than 10 blocks which shortens the length of the chain, prune is called for the outputs within blocks no-longer 10-deep.
+
+\subsubsection{Timelocks}
+
+If an output has a block-based timelock, it is set to be accumulated with the outputs of that block. If an output has a time-based timelock prior to the activation of the FCMP++ hard fork, it is converted to an estimated block-based timelock and accumulated with the outputs of that block. After the FCMP++ hard fork, time-based timelocks will be rejected entirely.
+
+\subsection{Input Modifications}
+
+To minimize modifications to inputs, FCMP++ inputs simply set the amount of key offsets 0.
+
+\subsection{Modifications to RingCT Base}
+
+We define a new RingCT type, $\mathsf{FCMPPlusPlus}$, and with it a new field, $\mathsf{TreeBlock}$. $\mathsf{TreeBlock}$ is the 32-byte hash of the block which was most recently accumulated into the tree (and therefore must be at least 10 blocks old).
+
+\subsection{Modifications to RingCT Prunable}
+
+We extend prunable with a byte-buffer which is of fixed-length with regards to the amount of outputs. This byte buffer is entirely left to Rust to interpret.
+
+This byte buffer contains $p$ Generalized Schnorr Protocols (which don't benefit from being merged).
+
+It also contains $n$ Generalized Bulletproofs, which we can structure in two ways.
+
+\begin{itemize}
+	\item We can minimize bandwidth by sending one Generalized Bulletproof, with the side effect of nine inputs being as computationally expensive as sixteen. This would practically mean limiting the amount of transaction inputs to potentially as low as four (or maybe eight, or having an aggressive fee clawback).
+	\item We can have no computational overhead by including as many Generalized Bulletproofs as powers of two summed to equal the amount of inputs. For one input, one Generalized Bulletproof. For four inputs, one Generalized Bulletproof. For seven ($4 + 2 + 1$) inputs, three Generalized Bulletproofs. This doesn't waste any performance regarding verification, and roughly makes the expected bandwidth 2.5 kB per two inputs.
+\end{itemize}
+
+\subsection{Modifications to Transaction Verification}
+
+$\mathsf{TreeBlock}$ is confirmed to be on the best chain and 10-blocks deep. The tree root after applying that block is fetched. The Rust code is called with the tree root, the linking tags, the pseudo-outputs, the byte buffer from RingCT prunable, and the hash of the transaction as used for signing.
+
+As of the most recent hard fork (Bulletproofs+), the only fields from prunable which are hashed when signing are the Bulletproofs. That is maintained. RingCT base is modified to exclude $\mathsf{TreeBlock}$ when being serialized for the hash for signing. While this would imply $\mathsf{TreeBlock}$ should be placed within prunable, this field cannot be pruned (as it's necessary to evaluate if the transaction should be dropped upon deep reorganization). The lack of hashing it, and malleability regarding the tree used, is explicitly allowed in order to support transaction chaining.
+
+\subsection{Modifications to Addresses}
+
+Addresses do not need modifications. All existing addresses will continue to work as-is. Wallets will work without modifying their keys at all.
+
+\subsubsection{Outgoing View Keys}
+
+In order to take advantage of the outgoing view key functionality, changes to the wallet's internals must be made. This is completely optional to the wallet and can be done at any time without impacting privacy. If it required generating a new address type, that would segment users (impacting privacy), hence the explicit statement there is no impact to privacy.
+
+Wallets would not only generate the new private key, $y$, they would also design and develop a format for sharing $x$, the outgoing view key, and update software to calculate linking tags when scanning outputs if they had the incoming view key and $x$. They would also specify their address with the public spend key $x \cdot G + y \cdot T$, instead of $x \cdot G$. This change is indistinguishable to a recipient of an address and indistinguishable to an adversary with a discrete log oracle.
+
+\subsubsection{Forward Secrecy}
+
+Forward secrecy, if enabled on the protocol level, requires the modifications for outgoing view keys. No additional modifications are required.
+
+\subsection{Modifications to the RPC}
+
+The RPC is extended with a route to return the path for an output (by index) within a specified tree. The existing decoy routes are maintained. A new distribution is added comprehensive to both the Cryptonote outputs and the RingCT outputs.
+
+\subsection{Modifications to Wallets}
+
+Wallets fetch the unified distribution, yet do not fetch the decoy information. Instead, they fetch the path of each selected decoy (and the actual output). Instead of calling CLSAG's prove with the decoy information, wallets would call the FCMP++ prove with the path of the output being spent. No other changes to wallets are required for full-chain membership proofs (solely for additional, wallet-optional functionality, which the changes for can be done at any time).
+
+\newpage
+
+\section{Future}
+
+Monero can deploy Seraphis, the codebase, in the future. The improvements to transaction construction, and sender-receiver communication (regarding one-time keys and shared secrets), are well-reasoned for Monero and desirable.
+
+Monero can also still deploy Seraphis, the linking tag format, requiring a migration and new addresses. That may offer more efficient membership proofs/a better choice of elliptic curves (better choice throughout the project, not just regarding membership). Generalized Bulletproofs, the gadgets described, and the additional layer circuit section would all be used for a deployment of FCMPs with Seraphis. We'd solely have to simplify the first layer circuit section. The usage of Generalized Schnorr Protocols has also been proposed with Seraphis, which would make an implementation of them from this work potentially reusable.
+
+JAMTIS can also still be deployed (over FCMP++s or over Seraphis).
+
+If forward secrecy is not deployed when FCMP++s initially are, forward secrecy should be in the next hard fork immediately after. Else, Monero is collecting data on a public ledger, creating a permanent option for an adversary to compromise our users' privacy in the future, with unknown ramifications.
+
+\end{document}
