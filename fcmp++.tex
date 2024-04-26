@@ -210,7 +210,7 @@ For the concept of Generalized Bulletproofs, and opening a Merkle tree using Ped
 
 \subsubsection{Alternatives}
 
-Bulletproofs and Bulletproofs+ both define commitments to the witness ($A_I, A$ respectively). These commitments are Pedersen hashes of the entire witness. If these commitments are moved into the statement, we can independently use Bulletproofs+ zk-WIP argument (or ideally a tailored version of it, as we don't need the inner-product functionality) to prove subsets of the commitment are validly formed. By defining the subsets as the variables we want hashed for the Merkle tree, we achieve Pedersen hashing with non-negligible overhead (~3x in verification time, with bandwidth scaling near-linear to the amount of hashes performed).
+Bulletproofs and Bulletproofs+ both define commitments to the witness ($A_I, A$ respectively). These commitments are Pedersen hashes of the entire witness. If these commitments are moved into the statement, we can independently use Bulletproofs+ zk-WIP argument (or ideally a tailored version of it, as we don't need the inner-product functionality) to prove subsets of the commitment are validly formed. By defining the subsets as the variables we want hashed for the Merkle tree, we achieve Pedersen hashing with non-negligible overhead (roughly 3x in verification time, with bandwidth scaling near-linear to the amount of hashes performed).
 
 Distinctly, we could discuss modifying the Bulletproof(+) statement to explicitly support such subsets, presumably via an additional challenge. This would have minimal overhead (an amount comparable to Generalized Bulletproofs if accomplished), be less expressive than Generalized Bulletproofs, yet largely as performant in both bandwidth and verification time.
 
@@ -221,6 +221,8 @@ Neither of these ideas are put forth as guaranteed fallbacks at this time. Solel
 Since we're performing full-chain membership proofs over Monero's RingCT, and Monero's RingCT uses Ed25519, we need a curve cycle involving Ed25519. Unfortunately, a curve cycle with Ed25519 is impossible for non-trivial curves. This is due to Ed25519 having a cofactor of 8. Instead of forming a curve cycle with Ed25519, we find a prime-order curve whose scalar field is Ed25519's field, and then form a curve cycle with that. This is referred to as a towering curve cycle, due to it being a curve cycle where one curve towers (stands over, not forming a cycle with) Ed25519.
 
 tevador proposed Helios and Selene for an efficient towering curve cycle, documenting the deterministic method used to find them and their security. Please see https://gist.github.com/tevador/4524c2092178df08996487d4e272b096.
+
+\newpage
 
 \subsection{Gadgets}
 
@@ -234,70 +236,256 @@ We define an arithmetic circuit with two parts to its statement.
 	\item
 	$W_l * a_l + W_r * a_r + W_o * a_o + W_v * V = c$
 	
-	For matrices $W_l, W_r, W_o, W_v$, this constraint is run for each column (where all have the same amount of columns). Defining $W_l, W_r, W_o, W_v$ as the column of $W_l, W_r, W_o, W_v$ currently relevant, $W_l * a_l, W_r * a_r, W_o * a_o$ is the inner product of the column and the vector.
+	$W_l, W_r, W_o, W_v, c$ have an equal amount of columns. An instance of this formula, referred to as a constraint, exists per column. Within an instance, we refer to $W_l, W_r, W_o, W_v, c$ as the column relevant (and not the overall structure).
 	
-	For $W_v, V$, this is defined by Bulletproofs(+) to be the Pedersen commitments accessible within the circuit and associated weights. We define $V$ as the Pedersen vector commitments, where instead of the length of a column of $W_v$ being the amount of Pedersen commitments, the length of a column is the amount of variables within the Pedersen vector commitment in question. The depth refers to which Pedersen vector commitment is currently being constrained.
+	$W_l, W_r, W_o, W_V$ has as many rows as $a_l, a_r, a_o$. $W_v$ additionally has a depth equivalent to the amount of Pedersen vector commitments. $c$ is a single value.
 	
-	While Generalized Bulletproofs still supports Pedersen commitments, we drop the functionality from consideration and don't bother notating it due to lack of use.
+    $W_{l,r,o} * a_{l,r,o}$ is $\sum^{a_l\mathsf{.len}()}_{i=0} W_{l,r,o_i} * a_{l,r,o_i}$ (where $l,r,o$ refers to one of the relevant three).
 	
-	$c$ is a row of constants of length equal to the amount of columns in $W_l, W_r, W_o, W_v$. As per the matrices, we evaluate the above formula once per column (where a column of $c$ is a single value). The relevant column is a constant value in the constraint checked.
+	$W_v * V$ is $\sum^{V\mathsf{.len}()}_{i=0} \sum^{a_l\mathsf{.len}()}_{j=0} W_{v_{i, j}} * V_{i, j}$
+
+	Please note $W_v, V$ is defined by Bulletproofs(+) to be the Pedersen commitments accessible within the circuit and associated weights. We define $V$ as the Pedersen vector commitments, with the necessary sub-indexing added. While Generalized Bulletproofs still supports Pedersen commitments, we drop the functionality from consideration and don't bother notating it due to lack of use.
 \end{itemize}
 
-A gadget is a series of $a_l, a_r$ (and respective $a_o$) rows, columns in $W_l, W_r, W_o, W_v$, and elements in $c$. They are intended to be reusable snippets we can independently formally verify as correct/create security proofs for.
+A gadget is a series of $a_l, a_r$ (and respective $a_o$) rows and columns in $W_l, W_r, W_o, W_v, c$. They are intended to be reusable snippets we can independently formally verify as correct/create security proofs for.
 
-\newcommand{\al}{\mathsf{a_l.push}}
-\newcommand{\ar}{\mathsf{a_r.push}}
+\newcommand{\p}{\mathsf{.push}}
+\newcommand{\al}{a_l\p}
+\newcommand{\ar}{a_r\p}
+\newcommand{\aol}{\mathsf{a_o.last()}}
+
+We define $\al, \ar, V_i\o$ as functions pushing a value onto the respective vector, returning a constrainable reference. Once $\al, \ar$ have been called, the push to $a_o$ is implicit with a constrainable reference retrievable with $\aol$.
 
 \newcommand{\all}{\mathsf{a_l.last()}}
 \newcommand{\arl}{\mathsf{a_r.last()}}
-\newcommand{\aol}{\mathsf{a_o.last()}}
 
-The following describes each gadget as necessary for human review. Pushes to $\mathsf{a_o}$ are implicit once a push to $\mathsf{a_l}, \mathsf{a_r}$ occurs. $\al(\arl)$ implies a constraint $1 ~\all + -1 ~\arl = 0$.
-
-\subsubsection{Bit}
-
-For $b$, $\al(b), \ar(b - 1)$. We then constrain $1 ~\all + -1 ~\arl = 1$ and $\aol = 0$.
-
-Over a prime field, the multiplication of any two non-zero values will be a non-zero value. Accordingly, one of the values has to be zero for the second constraint to hold true. If the left value, $b$, is zero, $b$ is a valid bit. If the right value is zero, since the right value is constrained to being the left value minus one, the left value must be one (a valid bit).
+\newpage
 
 \subsubsection{Equality}
 
-For $a, b$, we constrain $1 a + -1 b = 0$.
+\newcommand{\equality}{\mathsf{Equality}}
 
-By the simplification $a - b = 0$, and adding $b$ to both sides, we get $a = b$.
+$equality(a, b) \rightarrow$
 
-\subsubsection{Member of List}
+$~~1 ~a + -1 ~b = 0$
 
-For a claimed member of the list $m$, and the list $l$ (with length $> 0$), we define two distinct set membership gadgets.
-
-When the length of the list $l$ is $1$, list membership is the equality gadget.
-
-Else, $\al(l_0 - m)$. $\ar(l_i - m), \al(\aol) ~\forall~ 1 \le i < \mathsf{len}(l) - 1$. $\ar(l_{\mathsf{len}(l) - 1} - m)$. Constrain $\aol = 0$, and the consistency of all values pushed to $\mathsf{a_l}, \mathsf{a_r}$.
-
-This subtracts the claimed member from each item in the list, multiplying their results. Since, over a prime field, the only way to multiply to zero is to have a factor be zero, the result will only be zero if one of the subtractions resulted in zero. The only way for $a - b = 0$ is if $a = b$.
-
-\subsubsection{Tuple Member of Set}
-
-We create a Pedersen vector commitment for the list and the claimed member. We hash this to obtain weights $w$. Then, for a $n$-length tuple $(a, b, c, ...)$, we perform set membership of $a + w_0 * b + w_1 * c + ...$ over a similarly weighted list.
-
-For this to have an attack in polylogarithmic time, it'd presumably need to be converted to the birthday problem. Since changing the tuple claimed to be a member (the left-hand side) changes the effective list (each member being a potential right-hand side), the two sides aren't independent and Wagner's algorithm isn't usable to find an efficient solution.
+By adding $b$ to both sides, we get $a = b$.
 
 \subsubsection{Inverse}
 
-For an element $a$, $\al(a), \ar(a^{-1})$. Constrain $\aol = 1$.
+\newcommand{\inverse}{\mathsf{Inverse}}
 
-This also works as a proof $a$ is non-zero (as zero will not have a multiplicative inverse).
+$\inverse(a): z \rightarrow$
+
+$~~a_2 = \al(a)$
+
+$~~z = \ar(a^{-1})$
+
+$~~\equality(a, a_2)$
+
+$~~1 \aol = 1$
+
+For $a * z = 1$, we can rewrite this as $z = 1/a$ (which is the multiplicative inverse of $a$).
+
+This also serves to prove $a \ne 0$ since if it was $0$, it would produce a product of $0$ (which is not $1$).
+
+\subsubsection{Inequality}
+
+\newcommand{\inequality}{\mathsf{Inequality}}
+
+$inequality(a, b) \rightarrow$
+
+$~~c = a - b$
+
+$~~\al(c)$
+
+$~~\ar(c^{-1})$
+
+$~~1 ~a + -1 ~b + -1 ~c = 0$
+
+$~~1 ~\aol = 1$
+
+We constrain $c$ to be $a - b$. Then we constrain $c$ to having a multiplicative inverse. If $a == b$, $c$ will be $0$, and $\aol$ must be $0$ (since any number multiplied by $0$ is $0$).
+
+\subsubsection{Bit}
+
+\newcommand{\bit}{\mathsf{Bit}}
+
+$\bit(b) \rightarrow$
+
+$~~b_2 = \al(b)$
+
+$~~b_{sub} = \ar(b-1)$
+
+$~~\equality(b, b_2)$
+
+$~~1 ~b + -1 ~b_{sub} = 1$
+
+$~~1 ~\aol = 0$
+
+Over a prime field, the multiplication of any two non-zero values will be a non-zero value. Accordingly, one of the values has to be zero for the second constraint to hold true. If the left value, $b$, is zero, $b$ is a valid bit. If the right value is zero, since the right value is constrained to being the left value minus one, the left value must be one (a valid bit).
+
+\subsubsection{Member of List}
+
+\newcommand{\memberlist}{\mathsf{MemberOfList}}
+
+$\memberlist(L, m) \rightarrow$
+
+$~~l = \al(L_0 - m)$
+
+$~~1 ~L_0 + -1 ~m + -1 ~l = 0$
+
+$~~\forall ~1 <= i < L\mathsf{.length}() - 1:$
+
+$~~~~r = \ar(L_i - m)$
+
+$~~~~1 ~L_i + -1 ~m + -1 ~r = 0$
+
+$~~~~o = \aol$
+
+$~~~~l = \al(o))$
+
+$~~~~1 ~o + -1 ~l = 0$
+
+$~~r = \ar(L\mathsf{.last}() - m)$
+
+$~~1 ~L\mathsf{.last}() + -1 ~m + -1 ~r = 0$
+
+$~~1 ~\aol = 0$
+
+This defines a carried multiplication of $L_i - m$, which will be $0$ if and only if $L_i = m$. The multiplication of two values will be $0$ if and only if one factor is $0$ (since we're operating over a prime field). Accordingly, the carried multiplication will be $0$ only if at least one $L_i = m$.
 
 \subsubsection{On Curve}
 
-For a claimed point $(x, y)$, and the curve formula of the embedded curve $y^2 = x^3 + a x^2 + b x + c$,
+\newcommand{\oncurve}{\mathsf{OnCurve_{a,b,c}}}
 
-\begin{itemize}
-	\item $\al(y), \ar(y), 1 ~y_2 + -1 ~\aol = 0$
-	\item $\al(x), \ar(x), 1 ~x_2 + -1 ~\aol = 0$
-	\item $\al(x), \ar(x), 1 ~y_3 + -1 ~\aol = 0$
-	\item $-1 ~y_2 + 1 ~x_3 + a x_2 + b x + c = 0$
-\end{itemize}
+$\oncurve(x, y) \rightarrow$
+
+$~~y_2 = \al(y)$
+
+$~~y_3 = \ar(y)$
+
+$~~y^2 = \aol$
+
+$~~\equality(y, y_2)$
+
+$~~\equality(y, y_3)$
+
+$~~x_2 = \al(x)$
+
+$~~x_3 = \ar(x)$
+
+$~~x^2 = \aol$
+
+$~~\equality(x, x_2)$
+
+$~~\equality(x, x_3)$
+
+$~~x^2_2 = \al(x^2)$
+
+$~~x_4 = \ar(x)$
+
+$~~x^3 = \aol$
+
+$~~\equality(x^2, x^2_2)$
+
+$~~\equality(x, x_4)$
+
+$~~-1 ~y^2 + 1 ~x^3 + a ~x^2 + b ~x + 1 ~c$
+
+This evaluates the curve formula of the embedded curve (written in the form $y^2 = x^3 + a ~x^2 + b ~x + c$).
+
+\newpage
+
+\subsubsection{Incomplete Addition}
+
+\newcommand{\incompleteadd}{\mathsf{IncompleteAddition}}
+
+$\incompleteadd(x_0, y_0, x_1, y_1, x_2, y_2) \rightarrow$
+
+$~~\delta = (y_1 - y_0) / (x_1 - x_0)$
+
+$~~\delta = \al(\delta)$
+
+$~~r = \ar(x_1 - x_0)$
+
+$~~1 ~x_1 + -1 ~x_0 + -1 ~r = 0$
+
+$~~1 ~y_1 + -1 ~y_0 + -1 ~\aol = 0$
+
+$~~\delta_1 = \al(\delta)$
+
+$~~r = \ar(x_2 - x_0)$
+
+$~~\equality(\delta, \delta_1)$
+
+$~~1 ~x_2 + -1 ~x_0 + -1 ~r = 0$
+
+$~~-1 ~y_2 + -1 ~y_0 + -1 ~r = 0$
+
+$~~\delta_2 = \al(\delta)$
+
+$~~\delta_3 = \ar(\delta)$
+
+$~~\equality(\delta, \delta_2)$
+
+$~~\equality(\delta, \delta_3)$
+
+$~~1 ~x_0 + 1 ~x_1 + 1 ~x_2 + -1 ~\aol = 0$
+
+This has a precondition $x_0 \ne x_1$.
+
+\subsubsection{Permissible for Hashing}
+
+\newcommand{\permissible}{\mathsf{Permissible_{a, b}}}
+
+$\permissible(y) \rightarrow$
+
+$~~p = (a * y) + b$
+
+$~~l = \al(sqrt(p))$
+
+$~~r = \ar(sqrt(p))$
+
+$~~1 ~l + -1 ~r = 0$
+
+$~~1 ~\aol - a ~y = b$
+
+In order to not have have to hash points as their $x$ and $y$ coordinates (which would require a tuple set membership invocation and increase the cost of calculating the Pedersen hash), we define an arithmetic hash ($(a * y) + b$) and use it such that for any $x$ coordinate, only one $y$ coordinate will be accepted. This lets us drop the $y$ coordinate without concern of the prover providing the negative $y$ coordinate (negating the discrete logarithms, enabling double spends).
+
+We consider a $y$ coordinate permissible if $\mathsf{permissible}(y)$ and $!\mathsf{permissible}(-y)$. This can be checked in-circuit with just one multiplication, making it incredibly efficient.
+
+This cannot be used with linking tag generators, yet can be used for all other points we hash.
+
+Full credit to this idea goes to the authors of Curve Trees, https://eprint.iacr.org/2022/756.
+
+\newpage
+
+\subsection{Interactive Gadgets}
+
+\newcommand{\chl}{\mathsf{chl}}
+
+The rest of the gadgets we define are interactive. This bounds all of their arguments to being within Pedersen vector commitments, and has them called with an additional, per-gadget series of challenges $\chl$. $\chl$ is derived from hashing all of the Pedersen vector commitments with per-gadget further derivation.
+
+\subsubsection{Tuple Member of Set}
+
+\newcommand{\tuplememberlist}{\mathsf{TupleMemberOfList}}
+
+$\tuplememberlist(L, m) \rightarrow$
+
+$~~\forall ~0 <= i < L\mathsf{.length}():$
+
+$~~~~\forall ~0 <= j < :$
+
+$~~~~~~L_i = \sum^{L_0\mathsf{.length}()}_{j=0} chl_j * L_{i,j}$
+
+$~~m = \sum^{m\mathsf{.length}()}_{j=0} chl_j * m_j$
+
+$~~\memberlist(L, m)$
+
+Please note the notation here is an evolution of prior syntax. Arguments are generally considered a constrainable reference ($a_{l_0}$), yet here it's a linear combination (such as $1 ~a_{l_0} + 2 ~a_{r_0})$, ignoring the bound on being present in a Pedersen vector commitment). Technically, there's no distinction (since $a_{l_0}$ expands to $1 ~a_{l_0}$), yet it's important to acknowledge.
+
+For this to have an attack in polylogarithmic time, it'd presumably need to be converted to the birthday problem. Since changing the tuple claimed to be a member (the left-hand side) changes the effective list (each member being a potential right-hand side), the two sides aren't independent and Wagner's algorithm isn't usable to find an efficient solution.
 
 \subsubsection{Evaluate Divisor}
 
@@ -318,9 +506,9 @@ The verifier hashes this Pedersen vector commitment to a pair of points, $C_0, C
 For each $C_i$,
 
 \begin{enumerate}
-	\item The prover evaluates the divisor and runs the inverse gadget on the result. This makes $\all$ the supposed divisor evaluation and $\arl$ the inverse. The former is constrained per 4.3.7.
+	\item The prover evaluates the divisor and runs the inverse gadget on the result. This makes $\all$ the supposed divisor evaluation and $\arl$ the inverse. The former is constrained per 4.4.2.
 	\item $\al(\arl)$.
-	\item The prover evaluate the divisor differentiated over $x$ and pushes the result to $a_r$. This is constrained per 4.3.7.
+	\item The prover evaluate the divisor differentiated over $x$ and pushes the result to $a_r$. This is constrained per 4.4.2.
 	\item $C_{i_{eval_0}} = \aol$
 	\item TODO: $dx(A_i) / dz$, $C_{i_{eval_1}} = ~?$
 	\item $\al(C_{i_{eval_0}}), \ar(C_{i_{eval_1}})), C_{i_{eval}} = \aol$
@@ -337,34 +525,6 @@ The prior gadgets takes the logarithmic derivative of $D(C_0)D(C_1)D(C_2) = \pro
 Eagen's work has an $x$-only divisor equation of $D(C)D(-C) = \prod_{i=0}^{254}(C.x - G_i.x)$. If we instead take the logarithmic derivative of that, the proof loses the ability to differentiate $G_i.x$ from $(-G_i).x$. We can use this to generate a trinary system $-1, 0, 1$ with 161 powers of $G$ ($G, 3 \cdot G, 9 \cdot G$) which generates nearly the same $2^{255}$ group, yet with only 161 trits. Since we cannot distinguish $-1$ form $1$, the prover only has to commit to them as bits, saving 94 in-circuit multiplications. It still satisfies as a proof of knowledge for the discrete log, despite not being binding to the discrete log.
 
 The actual evaluation itself is also cheaper at just 4 in-circuit multiplications due to the single challenge point.
-
-\subsubsection{Incomplete Addition}
-
-For two on-curve points with distinct $x$ coordinates (denoted $(x_0, y_0), (x_1, y_1)$), $x_2, y_2$ can be proved their sum as follows.
-
-The prover provides $\sigma$.
-
-$\al(\sigma), \ar(x_1 - x_0)$
-
-$\aol = y_1 - y_0$
-
-$\al(\sigma), \ar(x_2 - x_0)$
-
-$\aol = -y_2 - y_0$
-
-$\al(\sigma), \ar(\sigma)$
-
-$\aol = x_0 + x_1 + x_2$
-
-\subsubsection{Permissible for Hashing}
-
-In order to not have have to hash points as their $x$ and $y$ coordinates (which would require a tuple set membership invocation and increase the cost of calculating the Pedersen hash), we define an arithmetic hash such that for any $x$ coordinate, only one $y$ coordinate will be accepted. This lets us drop the $y$ coordinate without concern of the prover providing the negative $y$ coordinate (negating the discrete logarithms, enabling double spends).
-
-This cannot be used with linking tag generators, yet can be used for all other points we hash.
-
-For a pair of constants $u, v$, we define $\mathsf{permissible}$ as $\mathsf{sqrt}(u * y + v).\mathsf{is\_some}()$. We consider an $x, y$ permissible if $\mathsf{permissible}(x, y)$ and $!\mathsf{permissible}(x, -y)$. This can be checked in-circuit with just two multiplications, making it incredibly efficient.
-
-Full credit to this idea goes to the authors of Curve Trees, https://eprint.iacr.org/2022/756.
 
 \subsection{Circuit}
 
@@ -408,7 +568,7 @@ This is the reason for discussing this in the first place.
 
 Hardware wallets maintain their support due to not needing to perform the membership proof, solely the Generalized Schnorr Protocol after the fact. The Generalized Schnorr Protocol is smaller than the current CLSAG proofs, and is accordingly assumed to be well within the allowed memory footprint. It is only one point larger than the proposed Seraphis ownership proof.
 
-\subsection{Multisig}
+\subsection{Multisignature Protocols}
 
 Generalized Schnorr Protocols effectively are Schnorr signatures, as the name implies. Accordingly, they benefit from all of the great work performed on Schnorr multisignatures, and can be expected to offer low-complexity, small-constant multisignature protocols.
 
@@ -536,12 +696,14 @@ This byte buffer contains $p$ Generalized Schnorr Protocols (which don't suffici
 It also contains $n$ Generalized Bulletproofs, which we can structure in two ways.
 
 \begin{itemize}
-	\item We can minimize bandwidth by sending one Generalized Bulletproof. This would practically mean limiting the amount of transaction inputs to potentially as low as four.
+	\item
+	We can minimize bandwidth by sending one Generalized Bulletproof. This would practically mean limiting the amount of transaction inputs to potentially as low as four.
 	
 	For context, we limit outputs to sixteen as a transaction with nine outputs has the same amount of computational overhead as a transaction with sixteen outputs. This means for a transaction with nine outputs, we waste seven outputs of computation ($7 * 64$, or $448$, multiplications), For inputs with one Generalized Bulletproof, we'd have the exact same effect, except one input of computation is presumably $3072$ multiplications. This means a single input of wasted computation is as bad as executing Bulletproof range proofs for sixteen outputs, three times over. for no reason at all.
 	
 	With an input limit of four, the most waste which can occur is one input of work by making a three-input transaction.
-	\item We can have no computational overhead by including as many Generalized Bulletproofs as powers of two summed to equal the amount of inputs. For one input, one Generalized Bulletproof. For four inputs, one Generalized Bulletproof. For seven ($4 + 2 + 1$) inputs, three Generalized Bulletproofs. This doesn't waste any performance regarding verification, and roughly makes the expected bandwidth 2.5 kB per two inputs.
+	\item
+	We can have no computational overhead by including as many Generalized Bulletproofs as powers of two summed to equal the amount of inputs. For one input, one Generalized Bulletproof. For four inputs, one Generalized Bulletproof. For seven ($4 + 2 + 1$) inputs, three Generalized Bulletproofs. This doesn't waste any performance regarding verification, and roughly makes the expected bandwidth 2.5 kB per two inputs.
 \end{itemize}
 
 \subsection{Modifications to Transaction Verification}
