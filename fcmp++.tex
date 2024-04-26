@@ -83,9 +83,10 @@ This does not require knowledge of $x, y$ and accordingly can be produced by any
 
 \subsection{New Spend Authorization and Linkability Proof}
 
-For an input tuple $\tilde{O}, \tilde{I}, \tilde{C}, R$, and linking tag $L$, prove knowledge of $x, y$ such that $O = x \cdot G + y \cdot T, I = \hashtopoint(O), \tilde{I} = I + r_i \cdot U$, and $L = x \cdot I$ (while binding to the transaction hash).
+For an input tuple $\tilde{O}, \tilde{I}, \tilde{C}, R$, and linking tag $L$, prove knowledge of $x, y', r_i$ such that $\tilde{O} = x \cdot G + y' \cdot T, R = r_i \cdot V, \tilde{I} = I + r_i \cdot U$, and $L = x \cdot I$ (while binding to the transaction hash). To be explicit, $y' = y + r_o$.
 
-We instantiate this literally with a Generalized Schnorr Protocol (https://eprint.iacr.org/2009/050).
+We instantiate this literally with a Generalized Schnorr Protocol. 
+For reference, see https://eprint.iacr.org/2009/050.
 
 \begin{enumerate}
 	\item
@@ -110,7 +111,7 @@ We instantiate this literally with a Generalized Schnorr Protocol (https://eprin
 		\item
 		$s_x = r_x + c \cdot x$	
 		\item
-		$s_y = r_y + c \cdot (y + r_o)$
+		$s_y = r_y + c \cdot y'$
 		\item
 		$s_r = r_r + c \cdot r_i$
 	\end{itemize}
@@ -144,7 +145,7 @@ Bulletproofs are a trustless proof already used within Monero, which can be used
 
 A Pedersen hash is a collision-resistant hash where for each word hashed, an additional term is added to a Pedersen Vector Commitment. Finding a collision implies finding the discrete log relationship of the generators used.
 
-Creating Pedersen hashes in-circuit would be too expensive. Bulletproofs offer arithmetic over the scalar field of the curve, yet Pedersen hashes produce an output over the field the curve is defined over. Accordingly, it'd require non-native arithmetic. If we instead use an elliptic curve whose scalar field is the field of the curve we're performing the hash with (and 'embedded' or 'towered' curve), we'd have a cost of 256 in-circuit multiplications per word hashed (for a 256-bit elliptic curve).
+Creating Pedersen hashes in-circuit would be too expensive. Bulletproofs offer arithmetic over the scalar field of the curve, yet Pedersen hashes produce an output over the field the curve is defined over. Accordingly, it'd require non-native arithmetic. If we instead use an elliptic curve whose scalar field is the field of the curve we're performing the hash with (an 'embedded' or 'towered' curve), we'd have a cost of 256 in-circuit multiplications per word hashed (for a 256-bit elliptic curve).
 
 We instead use Generalized Bulletproofs, a proposed modification to Bulletproofs currently undergoing work to obtain security proofs. Generalized Bulletproofs can be used to output Pedersen hashes at effectively no additional cost, although it cannot operate over its hashes (and we do need to operate over a series of hashes, due to discussing a Merkle tree). We solve this by operating over output hashes with a new Generalized Bulletproof, this one on a curve whose scalar field is the prior curve's field. This continues for each layer of the Merkle tree, and is most efficiently realizable with a curve cycle (a curve whose scalar field is the field of a curve whose scalar field is the field for the original curve). With a curve cycle, one can alternate between the two curves (and two proofs) without needing additional curves/proofs per layer.
 
