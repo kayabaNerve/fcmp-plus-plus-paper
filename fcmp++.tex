@@ -536,7 +536,11 @@ This byte buffer contains $p$ Generalized Schnorr Protocols (which don't suffici
 It also contains $n$ Generalized Bulletproofs, which we can structure in two ways.
 
 \begin{itemize}
-	\item We can minimize bandwidth by sending one Generalized Bulletproof, with the side effect of nine inputs being as computationally expensive as sixteen. This would practically mean limiting the amount of transaction inputs to potentially as low as four (or maybe eight, or having an aggressive fee clawback).
+	\item We can minimize bandwidth by sending one Generalized Bulletproof. This would practically mean limiting the amount of transaction inputs to potentially as low as four.
+	
+	For context, we limit outputs to sixteen as a transaction with nine outputs has the same amount of computational overhead as a transaction with sixteen outputs. This means for a transaction with nine outputs, we waste seven outputs of computation ($7 * 64$, or $448$, multiplications), For inputs with one Generalized Bulletproof, we'd have the exact same effect, except one input of computation is presumably $3072$ multiplications. This means a single input of wasted computation is as bad as executing Bulletproof range proofs for sixteen outputs, three times over. for no reason at all.
+	
+	With an input limit of four, the most waste which can occur is one input of work by making a three-input transaction.
 	\item We can have no computational overhead by including as many Generalized Bulletproofs as powers of two summed to equal the amount of inputs. For one input, one Generalized Bulletproof. For four inputs, one Generalized Bulletproof. For seven ($4 + 2 + 1$) inputs, three Generalized Bulletproofs. This doesn't waste any performance regarding verification, and roughly makes the expected bandwidth 2.5 kB per two inputs.
 \end{itemize}
 
