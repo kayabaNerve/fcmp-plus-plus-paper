@@ -64,47 +64,92 @@ We appreciate and maintain these four definitions. We focus on the first two, cu
 
 $\mathsf{OutputSet}$ is defined as a set of $(O, I, C)$ tuples (where $O$ is the output key, $I = \hashtopoint(O)$, and $C$ the amount commitment). 
 
-% $r_o, r_i, r_c, r_{r\_i}$
-For an output tuple $(O, I, C)$, the prover samples scalars $r_o, r_i, r_c$. They then prove:
+For an output tuple $(O, I, C)$, the prover samples scalars $r_o, r_i, r_j, r_c$. They then prove knowledge of those scalars and:
 
 $\tilde{O} = O + r_o \cdot T$
 
 $\tilde{I} = I + r_i \cdot U$
 
-$\tilde{C} = C + r_c \cdot G$
+$R = r_i \cdot V + r_j \cdot T$
 
-$R = r_i \cdot V$
+$\tilde{C} = C + r_c \cdot G$
 
 $(O, I, C) \in \mathsf{OutputSet}$
 
 while only publishing $\tilde{O}, \tilde{I}, \tilde{C}, R$ (the 'input tuple').
 
-This does not require knowledge of $x, y$ and accordingly can be produced by any party. Exactly how this membership proof occurs is left as a black box to the rest of these designs, yet further specified later.
+This does not require knowledge of $x, y$ (nor the opening of the Pedersen commitment $C$) and accordingly can be produced by any party trusted with sender privacy. Exactly how this membership proof occurs is left as a black box to the rest of these designs, yet further specified later.
+
+\newpage
 
 \subsection{New Spend Authorization and Linkability Proof}
 
-For an input tuple $\tilde{O}, \tilde{I}, \tilde{C}, R$, and linking tag $L$, prove knowledge of $x, y', r_i$ such that $\tilde{O} = x \cdot G + y' \cdot T, R = r_i \cdot V, \tilde{I} = I + r_i \cdot U$, and $L = x \cdot I$ (while binding to the transaction hash). To be explicit, $y' = y + r_o$.
+For an input tuple $\tilde{O}, \tilde{I}, \tilde{C}, R$, and linking tag $L$, prove knowledge of $x, y', r_i$ such that $\tilde{O} = x \cdot G + y' \cdot T, R = r_i \cdot V + r_j \cdot T, \tilde{I} = I + r_i \cdot U$, and $L = x \cdot I$ (while binding to the transaction hash). To be explicit, $y' = y + r_o$.
 
-We instantiate this literally with a Generalized Schnorr Protocol. 
-For reference, see https://eprint.iacr.org/2009/050.
+We instantiate this literally with a Bulletproof+ (https://eprint.iacr.org/2020/735) composed with a Generalized Schnorr Protocol (https://eprint.iacr.org/2009/050).
+
+We start by inlining the math for the Bulletproof+ Weighted-Inner Product proof (in its single round form with its $y = 1$, as that's all we need).
 
 \begin{enumerate}
 	\item
-	Prover samples $r_x, r_y, r_r$ and publishes:
+	Prover samples $r_p, \alpha, \beta, \mu, \delta$ and publishes:
 	\begin{itemize}
 		\item
-		$X = x \cdot U$	
+		$P = x \cdot G + r_i \cdot V + (x * r_i) \cdot U + r_p \cdot T$
+		
+		This is the $P$ from the statement of Bulletproof+'s weighted-inner-product proof for $\boldsymbol{g} = [G], \boldsymbol{h} = [V], g = U, h = T$ (in its own notation).
 		\item
-		$R_O = r_x \cdot G + r_y \cdot T$
+		$A = \alpha \cdot G + \beta \cdot V + ((\alpha * y) + (\beta * x)) \cdot U + \delta \cdot T$
 		\item
-		$R_X = r_x \cdot U$
-		\item
-		$R_R = r_r \cdot V$
-		\item
-		$R_L = r_x \cdot \tilde{I} + r_r \cdot -X$
+		$B = (\alpha * \beta) \cdot U + \mu \cdot T$
 	\end{itemize}
 	\item
-	Verifier sends challenge $c$.
+	Verifier sends challenges $e$.
+	\item
+	Prover publishes:
+	\begin{itemize}
+		\item
+		$s_\alpha = \alpha + e \cdot x$	
+		\item
+		$s_\beta = \beta + e \cdot r_i$
+		\item
+		$s_\delta = \mu + \delta * e + r_p * (e * e)$
+	\end{itemize}
+	\item
+	Verifier checks:
+	\begin{itemize}
+		\item
+		$(e * e) \cdot P + e \cdot A + B = (s_\alpha * e) \cdot G + (s_\beta * e) \cdot V + (s_\alpha * s_\beta) \cdot U + s_\delta \cdot T$
+	\end{itemize}
+\end{enumerate}
+
+We now have $P = x \cdot G + r_i \cdot V + (x * r_i) \cdot U + r_p \cdot T$ for some $x, r_i, r_p$. We set $P' = P - \tilde{O} - R$. For $P, \tilde{O}$, the only $G$ term is for $x$. If the $x$s are consistent, $P'$ will not have a $G$ term. For $P, R$, the only $V$ term is for $r_i$. If the $r_i$s are consistent, $P'$ will not have a $V$ term. For an honest prover, this leaves $P' = (x * r_i) \cdot U + (r_p - y' - r_j) \cdot T$.
+
+We now compose this with a Generalized Schnorr Protocol to:
+\begin{itemize}
+	\item Open $P'$ over $U, T$, proving $x$ and $r_i$ were consistent.
+	\item Prove the linking tag is well-formed.
+\end{itemize}
+
+\begin{enumerate}
+	\item
+	Prover samples $r_x, r_y, r_z, r_{r_p}$ and publishes:
+	\begin{itemize}
+		\item
+		$R_O = r_x \cdot G + r_y \cdot T$
+		
+		This is a commitment to the nonces we use when showing we know an opening of $\tilde{O}$.
+		\item
+		$R_P = r_z \cdot U + r_{r_p} \cdot T$
+		
+		This is a commitment to the nonces we use when showing we know an opening of $P'$.
+		\item
+		$R_L = r_x \cdot \tilde{I} + r_z \cdot -U$		
+
+		This is a commitment to the nonces we use when showing we know a consistent opening of $L$.
+	\end{itemize}
+	\item
+	Verifier sends challenges $c$.
 	\item
 	Prover publishes:
 	\begin{itemize}
@@ -113,23 +158,33 @@ For reference, see https://eprint.iacr.org/2009/050.
 		\item
 		$s_y = r_y + c \cdot y'$
 		\item
-		$s_r = r_r + c \cdot r_i$
+		$s_z = r_z + c \cdot (x * r_i)$
+		
+		This implicitly makes $z$, never explicitly defined, $x * r_i$.
+		\item
+		$s_{r_p} = r_{r_p} + c \cdot (r_p - y' - r_j)$
+		
+		$r_p - y' - r_j$ is the coefficient for the $T$ term of $P'$.
 	\end{itemize}
 	\item
 	Verifier checks:
 	\begin{itemize}
 		\item
 		$R_O + c \cdot \tilde{O} == s_x \cdot G + s_y \cdot T$
+		
+		This verifies the opening of $\tilde{O}$.
 		\item
-		$R_X + c \cdot X == s_x \cdot U$
+		$R_P + c \cdot P' == s_z \cdot U + s_{r_p} \cdot T$
+		
+		This verifies the opening of $P'$ over $U, T$.
 		\item
-		$R_R + c \cdot R == s_r \cdot V$
-		\item
-		$R_L + c \cdot L == s_x \cdot \tilde{I} + s_r \cdot -X$
+		$R_L + c \cdot L == s_x \cdot \tilde{I} + s_z \cdot -U$
+		
+		This verifies the opening of $L$ as $x \cdot \tilde{I} + (x * r_i) \cdot -U$. Since $x \cdot \tilde{I}$ is $x \cdot I + (x * r_i) \cdot U$, this will remove the additional term (proved correct and consistent with the Bulletproof+), leaving $x \cdot I$ (the intended linking tag).
 	\end{itemize}
 \end{enumerate}
 
-Internally, this creates $x \cdot \tilde{I}$ (or $x \cdot I + x \cdot r_i \cdot U$), before removing the $x \cdot r_i \cdot U$ term without revealing $r_i \cdot U$ (which would enable de-re-randomizing $\tilde{I}$). We do this by revealing $X = x \cdot U$, then opening the commitment to the randomness $R = r_i \cdot V$, and scaling $X$ by the opening (calculating $r_i * x \cdot U$).
+In the future, we should review specialized proofs. It would not be surprising if $s_x$ can be replaced for just $s_\alpha$, along with a few other similar tweaks.
 
 \newpage
 
@@ -318,10 +373,10 @@ We define two distinct layer gadgets, one for the first layer (which ensures the
 \subsubsection{First Layer}
 
 \begin{itemize}
-	\item Define $r_o \cdot T, r_c \cdot G$ in-circuit, constrain them on curve, and prove knowledge of the discrete logarithms.
+	\item Define $r_o \cdot T, r_c \cdot G, r_j \cdot T$ in-circuit, constrain them on curve, and prove knowledge of the discrete logarithms.
 	\item Define $r_i \cdot U$ in-circuit, constrain it on curve, and prove the bit decomposition of $r_i$ the discrete logarithm of $r_i \cdot U$ over $U$.
-	\item For the input tuple $\tilde{O}, \tilde{I}, \tilde{C}, R$, prove the $x$-coordinate of $r_o \cdot T$ distinct from the $x$-coordinate of $\tilde{O}$, the $x$-coordinate of $r_i \cdot U$ distinct from the $x$-coordinate of $\tilde{I}$, and the $x$-coordinate of $r_c \cdot G$ distinct from the $x$-coordinate of $\tilde{C}$.
-	\item Prove the bit decomposition of $r_i$ (already decomposed and validated as a bitstring) is the discrete logarithm of $R$ over $V$.
+	\item For the input tuple $\tilde{O}, \tilde{I}, \tilde{C}, R$, prove the $x$-coordinate of $r_o \cdot T$ distinct from the $x$-coordinate of $\tilde{O}$, the $x$-coordinate of $r_i \cdot U$ distinct from the $x$-coordinate of $\tilde{I}$, the $x$-coordinate of $r_c \cdot G$ distinct from the $x$-coordinate of $\tilde{C}$, and the $x$-coordinate of $R$ distinct from the $x$-coordinate of $r_j \cdot T$.
+	\item Prove the bit decomposition of $r_i$ (already decomposed and validated as a bitstring) is the discrete logarithm of $R - (r_j \cdot T)$ over $V$.
 	\item Perform incomplete addition of $\tilde{O}$ with $-(r_o \cdot T)$ to obtain $O$, $\tilde{I}$ with $-(r_i \cdot U)$ to obtain $I$, and $\tilde{C}$ with $-(r_c \cdot G)$ to obtain $C$.
 	\item Prove $O, C$ permissible for hashing.
 	\item Perform tuple set membership with $(O.x, I.x, I.y, C.x)$ within a Pedersen vector commitment. This is the hash for the next layer.
@@ -365,75 +420,15 @@ If wallets publish addresses whose public spend key is not $s \cdot G$ yet $o \c
 
 \subsection{Forward Secrecy}
 
-The abstracted membership proof is defined to output a tuple with a randomness commitment $r_i \cdot V$. An adversary with a discrete log oracle can query for $r_i$, unblind $\tilde{I}$ to $I$, and then discover the spent output.
+We define forward secrecy as an adversary with a discrete log oracle being able to, for any output, find a consistent opening for the given input tuple ($\tilde{O}, \tilde{I}, \tilde{C}, R$) and its Spend Authorization + Linkability proof.
 
-If we don't output $r_i \cdot V$ yet $r_i \cdot V + r_{r\_i} \cdot T$, we can execute the following combination of a 1-round Bulletproof+ and a Generalized Schnorr Protocol.
+Per the following Python script,
 
-\begin{enumerate}
-	\item
-	Prover samples $r_a, r_x, r_y, r_z, r_r, \alpha, \beta, \mu, \delta$ and publishes:
-	\begin{itemize}
-		\item
-		$P = x \cdot G + r_i \cdot V + (x * r_i) \cdot U + r_a \cdot T$
+https://gist.github.com/kayabaNerve/e09ba62d4a6165ced006b037f1068d95
 
-		\item
-		$A = \alpha \cdot G + \beta \cdot V + ((\alpha * y) + (\beta * x)) \cdot U + \delta \cdot T$
-		\item
-		$B = (\alpha * \beta) \cdot U + \mu \cdot T$
-
-		\item
-		$R_O = r_x \cdot G + r_y \cdot T$
-		\item
-		$R_P = r_z \cdot U + r_r \cdot T$
-		\item
-		$R_L = r_x \cdot \tilde{I} + r_z \cdot -U$		
-	\end{itemize}
-	\item
-	Verifier sends challenges $c, e$.
-	\item
-	Prover publishes:
-	\begin{itemize}
-		\item
-		$s_\alpha = \alpha + e \cdot x$	
-		\item
-		$s_\beta = \beta + e \cdot r_i$
-		\item
-		$s_\delta = \mu + \delta * e + r_a * (e * e)$
-
-		\item
-		$s_x = r_x + c \cdot x$	
-		\item
-		$s_y = r_y + c \cdot (y + r_o)$
-		\item
-		$s_z = r_z + c \cdot (x * r_i)$
-		\item
-		$s_a = r_r + c \cdot (r_a - (y + r_o) - r_{r\_i})$
-	\end{itemize}
-	\item
-	Verifier checks:
-	\begin{itemize}
-		\item
-		$(e * e) \cdot P + e \cdot A + B = (s_\alpha * e) \cdot G + (s_\beta * e) \cdot V + (s_\alpha * s_\beta) \cdot U + s_\delta \cdot T$
-		\item
-		$R_O + c \cdot \tilde{O} == s_x \cdot G + s_y \cdot T$
-		\item
-		$R_P + c \cdot (P - \tilde{O} - R) == s_z \cdot U + s_a \cdot T$
-		\item
-		$R_L + c \cdot L == s_x \cdot \tilde{I} + s_z \cdot -U$
-	\end{itemize}
-\end{enumerate}
-
-Instead of providing the hint $X = x \cdot U$, a one-row Bulletproof+ is used to calculate $x * r_i$. We subtract $\tilde{O}, R$ from the Bulletproof+ output ($P$) to obtain a Pedersen commitment to $x * r_i$ if and only if the $x, r_i$ variables are consistent with $\tilde{O}, R$. We then open that Pedersen commitment within the Generalized Schnorr Protocol to ensure consistency.
-
-This is forward secret per the Python script located at
-
-https://gist.github.com/kayabaNerve/e09ba62d4a6165ced006b037f1068d95.
-
-It creates an output, re-randomizes it as expected, and then performs the above protocol. It then selects a random linking tag generator, representing a random output, and uses a discrete log oracle to find solutions for every relationship. Since there are solutions for every variable, while still satisfying all commitments, any output can be shown to be 'the' output opened by the Generalized Schnorr Protocol. Accordingly, an adversary with a discrete log oracle cannot distinguish between outputs.
+this is true. The script creates an output, decides all of the necessary nonces, and publishes its solutions. The script proceeds to create a random output (specifically, a random linking tag generator for an output), and from there performs extraction of the various witness values/nonces which would have been used. Since it is able to extract a solution for every variable, and rebuild identical commitments, it is able to forge a indistinguishable proof that output was the output spent. Since any output will have an indistinguishable forged proof, one cannot distinguish a legitimate proof.
 
 An adversary with a discrete log oracle also cannot distinguish between an unspent non-forward-secret output and a forward-secret output. Such an adversary can only calculate what the linking tag would be if the output isn't forward secret, and wait to see if that appears (making it a spent non-forward-secret output).
-
-At six points and seven scalars, it still uses less memory to communicate than the currently used CLSAGs. That doesn't change the decompressed points use ~4x the memory as a scalar while being worked with (making it potentially roughly twice as memory intensive to sign as current CLSAGs). By first doing the Bulletproof+, then doing the Generalized Schnorr Protocol, the signer ends up with half the work in two, almost perfectly evenly sized chunks. This means it should be no more memory intensive than current CLSAGs, with future potential improvements possible (such integrating the Bulletproof+ with the Generalized Schnorr Protocol, instead of running them separately and composing their statements).
 
 \subsection{Transaction Chaining}
 
