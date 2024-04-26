@@ -444,34 +444,66 @@ With the concepts of the proof established, and the functionality iterated, it's
 
 \subsection{Tree}
 
-With the circuit proving an output tuple exists within a Merkle tree, we need to create the tree. The tree will be implemented in C++, with the hash function FFI'd from Rust. The external API, with regards to the blockchain, is:
+With the circuit proving an output tuple exists within a Merkle tree, we need to create the tree. The tree will be implemented in C++, with the hash function FFI'd from Rust.
+
+The tree is a $l$-layer tree where each layer is of alternative widths $w_a, w_b$. The tree is theoretically considered to be a $\infty$-layer tree, where all members of branches are zero by default. The tree root is the hash within the lowest branch with only one hash.
+
+For the hash function $\mathcal{H}_{tree}$, parameterized by the layer alternation to $\mathcal{H}_{tree_a}, \mathcal{H}_{tree_b}$, and a list of leaves $\mathsf{leaves}$, the tree is calculated as follows:
+
+\begin{enumerate}
+	\item $c = a$. Hash $\mathsf{leaves}$ in $w_c$ chunks with $\mathcal{H}_{tree_c}$ to create $\mathsf{leaves.length()} / w_c$ members of the next layer (denoted $\mathsf{members}$).
+	\item If $c = a$, $c = b$, else $c = a$. If $\mathsf{members.length()} == 1$, the algorithm terminates. Else, hash $\mathsf{members}$ in $w_c$ chunks with $\mathcal{H}_{tree_c}$ to create $\mathsf{leaves.length()} / w_c$ members of the next layer (which become the new $\mathsf{members}$).
+	\item Repeat the prior step.
+\end{enumerate}
+
+We expose the following external API, minimizing the intricacies of the tree:
 
 \begin{itemize}
   \item Grow.
   
-  Grow incorporates a list of $n$-leaves (themselves tuples $(O.x, I.x, I.y, C.x)$) into the tree. For a $w$-wide branch, and the rightmost branch containing $l$ leaves already, the following is done:
-  
-  \begin{enumerate}
-  	\item Hash the first $w - l$ leaves, then perform an elliptic curve addition with the existing hash.
-  	\item Hash each further set of $w$ leaves.
-  	\item For all updated/created hashes, hash their delta to update their branch's hash.
-  	\item Repeat until the tree root is updated.
-  \end{enumerate}
-
+  Grow incorporates a list of $n$ leaves (themselves tuples $(O, I, C)$) into the tree.
   \item Prune.
-  
+
   Prune removes a list of $n$ leaves from the tree.
-   
-  \begin{enumerate}
-   	\item For every complete branch of leaves encompassed, remove them.
-   	\item For every branch of leaves partially modified, hash the removed leaves and subtract them from the existing hash if the removed leaves is less than the remaining leaves. If the remaining leaves is less, hash those to re-calculate the hash entirely.
-   	\item For every hash whose children were modified, perform the above until the tree root is updated.
-  \end{enumerate}
 \end{itemize}
+
+With the tree calculation described, and the API defined, we now detail performant implementations of both functions. We take extensive advantage of how the hashes are additively homomorphic ($\mathcal{H}_{tree_c}([A, 0]) + \mathcal{H}_{tree_c}([0, B]) = \mathcal{H}_{tree_c}([A, B])$).
+
+\subsubsection{Grow}
+
+For $\mathsf{outputs}$, a set of output tuples $(O, I, C)$, we separate them as
+$$
+\mathsf{outputs_0} = \mathsf{outputs[.. ~w_a - (tree.length() \mod w_a)]}
+$$
+$$
+\mathsf{outputs_1} = \mathsf{outputs[(tree.length() \mod w_a) ~..]}
+$$
+
+Add $\mathcal{H}_{tree_c}(([0, 0, 0, 0] * (tree.length() \mod w_a)) + \mathsf{outputs_0.flatten()})$ to the most recently appended branch hash for the leaves. The flatten operation transforms $$[(A, B, C), (D, E, F)]$$ to $$[
+A.x, B.x, B.y, C.x,
+D.x, E.x, E.y, F.x
+]$$
+(a series of tuples of points to a series of field elements).
+
+Then, for each $w_a$ chunk of $\mathsf{outputs_1}$, hash the flattened chunk, appending the resulting hash to the next layer.
+
+Please note this technically makes the width of the first layer $4 * w_a$, due to considering four field elements (each one word of the hash function) as individual leaves.
+
+For each branch hash modified from $H$ to $H'$, calculate $H'.x - H.x$, the delta. With the proper alignment and chunking, hash the deltas and add the resulting hash to the proper branch hash on the next layer up. Repeat until the only hash modified is the new tree's root.
+
+\subsubsection{Prune}
+
+\begin{enumerate}
+  \item For every complete branch of leaves encompassed, remove them.
+  \item For every branch of leaves partially modified, hash the removed leaves (properly aligned within the hash function) and subtract them from the existing branch hash if the amount of removed leaves is less than the amount of remaining leaves. If the amount of remaining leaves is less, hash those to re-calculate the hash entirely.
+  \item For every hash whose children were modified, perform the above remove/delta-hash procedure until the new tree's root is updated.
+\end{enumerate}
 
 \subsection{Permissibility}
 
-For the first layer, $O$ will have $T$ added until it passes permissibility. $C$ will have $G$ added until it passes permissibility. For all other layers, the blinding generator $H$ is added to the hash until it's permissible.
+For an input tuple $(O, I, C)$, $O, T$ must be permissible before they can be hashed into the tree. $O$ has $T$ added until it's permissible, where for $O = x \cdot G + y \cdot T$, $y$ is incremented as many times as $T$ was added. $C$ has $G$ added until it's permissible, where for $C = r \cdot G + a \cdot H$, $r$ (the commitment mask) is incremented as many times as $G$ was added.
+
+The hash functions, outputting points, are programmed to only output permissible points.
 
 \subsubsection{Initialization}
 
