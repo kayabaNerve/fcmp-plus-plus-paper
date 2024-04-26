@@ -517,19 +517,21 @@ When a block achieves a depth of 10 (the constant 10 being from the 10-block loc
 
 If an output has a block-based timelock, it is set to be accumulated with the outputs of that block. If an output has a time-based timelock prior to the activation of the FCMP++ hard fork, it is converted to an estimated block-based timelock and accumulated with the outputs of that block. After the FCMP++ hard fork, time-based timelocks will be rejected entirely.
 
+Preserving time-based timelocks would require defining a linked list where upon block addition, we check if we should add the output at the head of the list (and any further outputs) to the tree. Unfortunately, such an implementation would be quite easy to perform denial-of-service attacks against. We could also define a vector, enabling efficient insertion, yet then we must define and maintain an unbounded global list which at best can be bucketed (though we'd need to prune from the head of the list, shifting the bucket(s)). With block-based timelocks, we still have the unbounded list commentary, yet have efficient topics (the block number) and no partial list additions. Accordingly, one is not worth the headache, and one has a tolerable headache.
+
 \subsection{Input Modifications}
 
 To minimize modifications to inputs, FCMP++ inputs simply set the amount of key offsets 0.
 
 \subsection{Modifications to RingCT Base}
 
-We define a new RingCT type, $\mathsf{FCMPPlusPlus}$, and with it a new field, $\mathsf{TreeBlock}$. $\mathsf{TreeBlock}$ is the 32-byte hash of the block which was most recently accumulated into the tree (and therefore must be at least 10 blocks old).
+We define a new RingCT type, $\mathsf{FCMPPlusPlus}$, and with it a new field, $\mathsf{ReferenceBlock}$. $\mathsf{ReferenceBlock}$ is the 32-byte hash of the Monero block which was most recently accumulated into the tree (and therefore must be at least 10 blocks old).
 
 \subsection{Modifications to RingCT Prunable}
 
 We extend prunable with a byte-buffer which is of fixed-length with regards to the amount of outputs. This byte buffer is entirely left to Rust to interpret.
 
-This byte buffer contains $p$ Generalized Schnorr Protocols (which don't benefit from being merged).
+This byte buffer contains $p$ Generalized Schnorr Protocols (which don't sufficiently benefit from being merged into a single proof).
 
 It also contains $n$ Generalized Bulletproofs, which we can structure in two ways.
 
@@ -540,9 +542,9 @@ It also contains $n$ Generalized Bulletproofs, which we can structure in two way
 
 \subsection{Modifications to Transaction Verification}
 
-$\mathsf{TreeBlock}$ is confirmed to be on the best chain and 10-blocks deep. The tree root after applying that block is fetched. The Rust code is called with the tree root, the linking tags, the pseudo-outputs, the byte buffer from RingCT prunable, and the hash of the transaction as used for signing.
+$\mathsf{ReferenceBlock}$ is confirmed to be on the best chain and 10-blocks deep. The tree root after applying that block is fetched. The Rust code is called with the tree root, the linking tags, the pseudo-outputs, the byte buffer from RingCT prunable, and the hash of the transaction as used for signing.
 
-As of the most recent hard fork (Bulletproofs+), the only fields from prunable which are hashed when signing are the Bulletproofs. That is maintained. RingCT base is modified to exclude $\mathsf{TreeBlock}$ when being serialized for the hash for signing. While this would imply $\mathsf{TreeBlock}$ should be placed within prunable, this field cannot be pruned (as it's necessary to evaluate if the transaction should be dropped upon deep reorganization). The lack of hashing it, and malleability regarding the tree used, is explicitly allowed in order to support transaction chaining.
+As of the most recent hard fork (Bulletproofs+), the only fields from prunable which are hashed when signing are the Bulletproofs. That is maintained. RingCT base is modified to exclude $\mathsf{ReferenceBlock}$ when being serialized for the hash for signing. While this would imply $\mathsf{ReferenceBlock}$ should be placed within prunable, this field cannot be pruned (as it's necessary to evaluate if the transaction should be dropped upon deep reorganization). The lack of hashing it, and malleability regarding the tree used, is explicitly allowed in order to support transaction chaining.
 
 \subsection{Modifications to Addresses}
 
@@ -564,7 +566,11 @@ The RPC is extended with a route to return the path for an output (by index) wit
 
 \subsection{Modifications to Wallets}
 
-Wallets fetch the unified distribution, yet do not fetch the decoy information. Instead, they fetch the path of each selected decoy (and the actual output). Instead of calling CLSAG's prove with the decoy information, wallets would call the FCMP++ prove with the path of the output being spent. No other changes to wallets are required for full-chain membership proofs (solely for additional, wallet-optional functionality, which the changes for can be done at any time).
+Wallets fetch the unified distribution, yet do not fetch the decoy information. Instead, they fetch the path of each selected decoy (and the actual output).
+
+Alternatively, wallets may locally build the tree while scanning the blockchain. This removes the need to request paths for any outputs, as wallets may now locally request the path for their output.
+
+Instead of calling CLSAG's prove with the decoy information, wallets would call the FCMP++ prove with the path of the output being spent. No other changes to wallets are required for full-chain membership proofs (solely for additional, wallet-optional functionality, for which the changes can be done at any time).
 
 \section{Future}
 
@@ -573,7 +579,5 @@ Monero can deploy Seraphis, the codebase, in the future. The improvements to tra
 Monero can also still deploy Seraphis, the linking tag format, requiring a migration and new addresses. That may offer more efficient membership proofs/a better choice of elliptic curves (better choice throughout the project, not just regarding membership). Generalized Bulletproofs, the gadgets described, and the additional layer circuit section would all be used for a deployment of FCMPs with Seraphis. We'd solely have to simplify the first layer circuit section. The usage of Generalized Schnorr Protocols has also been proposed with Seraphis, which would make an implementation of them from this work potentially reusable.
 
 JAMTIS can also still be deployed (over FCMP++s or over Seraphis).
-
-If forward secrecy is not deployed when FCMP++s initially are, forward secrecy should be in the next hard fork immediately after. Else, Monero is collecting data on a public ledger, creating a permanent option for an adversary to compromise our users' privacy in the future, with unknown ramifications.
 
 \end{document}
