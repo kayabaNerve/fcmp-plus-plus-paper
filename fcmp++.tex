@@ -285,6 +285,8 @@ $~~\equality(a, a_2)$
 
 $~~1 \aol = 1$
 
+$~~\mathsf{return} ~z$
+
 For $a * z = 1$, we can rewrite this as $z = 1/a$ (which is the multiplicative inverse of $a$).
 
 This also serves to prove $a \ne 0$ since if it was $0$, it would produce a product of $0$ (which is not $1$).
@@ -487,44 +489,92 @@ Please note the notation here is an evolution of prior syntax. Arguments are gen
 
 For this to have an attack in polylogarithmic time, it'd presumably need to be converted to the birthday problem. Since changing the tuple claimed to be a member (the left-hand side) changes the effective list (each member being a potential right-hand side), the two sides aren't independent and Wagner's algorithm isn't usable to find an efficient solution.
 
-\subsubsection{Evaluate Divisor}
-
-An elliptic curve divisor is a polynomial modulo the polynomial for the elliptic curve. This means it has $y^2, y, xy^i, x^j$ terms. For an elliptic curve divisor usable within constraints, which requires it present in $a_l, a_r, a_o$, or $V$, we can evaluate it for variables $x, y$. We only discuss the case where $x, y$ are public.
-
-The verifier generates the necessary powers and cross products for $x$ and $y$.
-
-For an example polynomial $a * x^2 + b * x + c$, we rewrite it as $x^2 * a + x * b + c$. With this rearrangement, it's clear how we can use $W_l * a_l + W_r * a_r + W_o * a_o + W_v * V = c$ to evaluate this without extending $a_l, a_r, a_o$. We place the $x, y$ values into $W_*$ and enable obtaining a constraint for the evaluation of the polynomial.
-
 \subsubsection{Discrete Log Proof}
 
-We use elliptic curve divisors, as posited in https://eprint.iacr.org/2022/596.
+\newcommand{\dloglhs}{\mathsf{DivisorChallenge}}
+
+$\dloglhs(n_{y_{0..2}}, n_{yx_{0..m}}, n_{x_{1..n}}, n_0, d_{y_{0..2}}, d_{yx_{0..m}}, d_{x_{0..n}}, d_0, \delta, \chl) \rightarrow$
+
+$~~p_{0_n} = \sum^2_{i=0} \chl\mathsf{.y}^{(i+1)} * n_{y_{i}} + \sum^m_{i=0} (\chl\mathsf{.y} * \chl\mathsf{.x}^{(i+1)}) * n_{xy_{i}} + \sum^n_{i=1} \chl\mathsf{.x}^{(i+1)} * n_{x_{i}} + 1 * \chl\mathsf{.x} + 1 * n_0$
+
+$~~p_{0_d} = \sum^2_{i=0} \chl\mathsf{.y}^{(i+1)} * d_{y_{i}} + \sum^m_{i=0} (\chl\mathsf{.y} * \chl\mathsf{.x}^{(i+1)}) * d_{xy_{i}} + \sum^n_{i=0} \chl\mathsf{.x}^{(i+1)} * d_{x_{i}} + 1 * d_0$
+
+$~~p_{0_d} = \inverse(p_{0_d})$
+
+$~~\equality(\al(p_{0_n}), p_{0_n})$
+
+$~~\equality(\ar(p_{0_d}), p_{0_d})$
+
+$~~p_0 = \aol$
+
+$~~p_{1_n} = 2 * \chl\mathsf{.y}$
+
+$~~p_{1_d} = (-\delta \cdot p_{1_n}) + 3 * \chl\mathsf{.x} + A$
+
+$~~p_{1_d} = \inverse(p_{1_d})$
+
+$~~\equality(\al(p_{1_n}), p_{1_n})$
+
+$~~\equality(\ar(p_{1_d}), p_{1_d})$
+
+$~~p_1 = \aol$
+
+$~~\equality(\al(p_0), p_0)$
+
+$~~\equality(\ar(p_1), p_1)$
+
+$~~\mathsf{return} ~\aol$
+
+$n, d$ are the coefficients for the numerator and the denominator of the first fraction from formula 1 of https://eprint.iacr.org/2022/596. $d$ is checked to be non-zero by the creation of the inverse, and $n$ is enforced to be non-zero by using $1$ for the coefficient for $x^1$.
+
+$A$ is the $A$ from the curve equation $y^2 = x^3 + A * x + B$.
+
+Please note we define linear combinations $p_{0_n}, p_{0_d}, p_0, p_{1_n}, p_{1_d}, p_1$, push them as if they were values (which they can be to the prover), and then constrain off them as linear combinations.
+
+\newcommand{\dlog}{\mathsf{DiscreteLog_{G}}}
+
+$\dlog(n_{y_{0..2}}, n_{yx_{0..m}}, n_{x_{1..n}}, n_0, d_{y_{0..2}}, d_{yx_{0..m}}, d_{x_{0..n}}, d_0, s_{0..255}, x, y) \rightarrow$
+
+$~~\forall ~0 <= i < 255:$
+
+$~~~~\bit(s_i)$
+
+$~~\chl_0 = \mathcal{H}_{point}(\chl_0)$
+
+$~~\chl_1 = \mathcal{H}_{point}(\chl_1)$
+
+$~~\chl_2 = -(\chl_0 + \chl_1)$
+
+$~~\delta = (\chl_1\mathsf{.y} - \chl_0\mathsf{.y}) * (\chl_1\mathsf{.x} - \chl_0\mathsf{.x})^{-1}$
+
+$~~\mu = \chl_1.y - (\delta * \chl_1.x)$
+
+$~~\sum^2_{i=0} \dloglhs(n_y, n_{yx}, n_x, n_0, d_y, d_{yx}, d_x, d_0, \delta, \chl_i) ~+~ \sum^{254}_{i=0} (\mu ~-~ (G_i\mathsf{.y} ~-~ (\delta ~*~ G_i\mathsf{.x})))^{-1} ~*~ s_i = 0$
+
+We use elliptic curve divisors, as posited by Liam Eagen (https://eprint.iacr.org/2022/596).
 
 For a generator $G$, both the prover and the verifier calculate $G_0 = 2^0 \cdot G, ...,G_{254} = 2^{254} \cdot G$. For a scalar for the embedded curve $s$, the prover creates a 255-bit decomposition $b_0, ..., b_{254}$. The prover creates a Pedersen vector commitment for the bits and the divisor interpolating $s \cdot G$ with the relevant powers of $G$.
 
-The verifier hashes this Pedersen vector commitment to a pair of points, $C_0, C_1$. Set $C_2 = -(C_0 + C_1)$. Set $Z$ to the polynomial $y - \lambda x$, and $z$ to $\mu$, where $\lambda, \mu$ are the slope and intercept interpolating the three points.
+We then perform a challenged evaluation of the divisor, and for the right-hand side compared to (the sum of each interpolated point also so challenged), we only include terms selected by the bits.
 
+While evaluating divisors (a polynomial), we consider the evaluation not as $a * x^2 + b * x + c$, yet $x^2 * a + x * b + c$. The latter lines up with the constraint system's definition (since our $x$ is public).
 For each $C_i$,
 
-\begin{enumerate}
-	\item The prover evaluates the divisor and runs the inverse gadget on the result. This makes $\all$ the supposed divisor evaluation and $\arl$ the inverse. The former is constrained per 4.4.2.
-	\item $\al(\arl)$.
-	\item The prover evaluate the divisor differentiated over $x$ and pushes the result to $a_r$. This is constrained per 4.4.2.
-	\item $C_{i_{eval_0}} = \aol$
-	\item TODO: $dx(A_i) / dz$, $C_{i_{eval_1}} = ~?$
-	\item $\al(C_{i_{eval_0}}), \ar(C_{i_{eval_1}})), C_{i_{eval}} = \aol$
-\end{enumerate}
-
-We finally constrain $C_{0_{eval}} + C_{1_{eval}} + C_{2_{eval}} - \sum_{i=0}^{254} (1 / (\mu - Z(G_i))) * b_i = 0$.
-
-This proves $b_0, ..., b_{254}$ is the 255-bit decomposition of $s$ where $s$ is the discrete logarithm of $s \cdot G$. It takes 255 in-circuit multiplications to calculate $b_0, ..., b_{254}$ (which are reusable in other discrete log proofs), then 3 in-circuit multiplications are used per $C_i$ (9 in total).
+Please note if this discrete log is reused in other proofs, it's unnecessary to again prove it's a valid bitstring.
 
 \subsubsection{Discrete Log Proof of Knowledge}
 
-The prior gadgets takes the logarithmic derivative of $D(C_0)D(C_1)D(C_2) = \prod_{i=0}^{254}(\mu - Z(G_i))$ where $D$ is the divisor to enable evaluation with a linear combination (instead of hundreds of in-circuit multiplications).
+\newcommand{\dlogpok}{\mathsf{DiscreteLogProofOfKnowledge_G}}
 
-Eagen's work has an $x$-only divisor equation of $D(C)D(-C) = \prod_{i=0}^{254}(C.x - G_i.x)$. If we instead take the logarithmic derivative of that, the proof loses the ability to differentiate $G_i.x$ from $(-G_i).x$. We can use this to generate a trinary system $-1, 0, 1$ with 161 powers of $G$ ($G, 3 \cdot G, 9 \cdot G$) which generates nearly the same $2^{255}$ group, yet with only 161 trits. Since we cannot distinguish $-1$ form $1$, the prover only has to commit to them as bits, saving 94 in-circuit multiplications. It still satisfies as a proof of knowledge for the discrete log, despite not being binding to the discrete log.
+$\dlogpok(n_{y_{0..2}}, n_{yx_{0..m}}, n_{x_{1..n}}, n_0, d_{y_{0..2}}, d_{yx_{0..m}}, d_{x_{0..n}}, d_0, s_{0..255}, x, y) \rightarrow$
 
-The actual evaluation itself is also cheaper at just 4 in-circuit multiplications due to the single challenge point.
+$~~\dlog(n_y, n_{yx}, n_x, n_0, d_y, d_{yx}, d_x, d_0, s, x, y)$
+
+For now, $\dlogpok = \dlog$ (inheriting its preconditions and argument formatting). In the future, another option may be notably more efficient.
+
+$\dlog$ takes the logarithmic derivative of $D(C_0) * D(C_1) * D(C_2) = \prod_{i=0}^{254}(\mu - Z(G_i))$, where $D$ is the divisor, to enable evaluation with a linear combination (instead of hundreds of in-circuit multiplications).
+
+Eagen's work has an $x$-only divisor equation of $D(C) * D(-C) = \prod_{i=0}^{254}(C.x - G_i.x)$. If we instead take the logarithmic derivative of that, the proof loses the ability to differentiate $G_i.x$ from $(-G_i).x$. We can use this to generate a trinary system $-1, 0, 1$ with $161$ powers of $G$ ($G, 3 \cdot G, 9 \cdot G$) which generates nearly the same $2^{255}$ group, yet with only $161$ trits. Since we cannot distinguish $-1$ form $1$, the prover only has to commit to them as bits, saving 94 in-circuit multiplications. It still satisfies as a proof of knowledge for the discrete log, despite not being binding to the discrete log.
 
 \subsection{Circuit}
 
