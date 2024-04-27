@@ -405,6 +405,8 @@ This evaluates the curve formula of the embedded curve (written in the form $y^2
 
 $\incompleteadd(x_0, y_0, x_1, y_1, x_2, y_2) \rightarrow$
 
+$~~\inequality(x_0, x_1)$
+
 $~~\delta = (y_1 - y_0) / (x_1 - x_0)$
 
 $~~\delta = \al(\delta)$
@@ -435,8 +437,6 @@ $~~\equality(\delta, \delta_3)$
 
 $~~1 ~x_0 + 1 ~x_1 + 1 ~x_2 + -1 ~\aol = 0$
 
-This has a precondition $x_0 \ne x_1$.
-
 \subsubsection{Permissible for Hashing}
 
 \newcommand{\permissible}{\mathsf{Permissible_{a, b}}}
@@ -462,6 +462,22 @@ This cannot be used with linking tag generators, yet can be used for all other p
 Full credit to this idea goes to the authors of Curve Trees, https://eprint.iacr.org/2022/756.
 
 \newpage
+
+\subsubsection{Discrete Logarithm Bitstring}
+
+\newcommand{\dlogbits}{\mathsf{DiscreteLogarithmBitstring}}
+
+$\dlogbits(d_{0..255}) \rightarrow$
+
+$~~\forall ~0 <= i < 255:$
+
+$~~~~\bit(d_i)$
+
+$~~\inequality(\sum^{254}_{i=0} d_i, 0)$
+
+$~~\inequality(\sum^{254}_{i=0} d_i, 1)$
+
+This proves a claimed discrete logarithm (represented as a bitstring) is in fact a bitstring. It also proves that at least two bits are set, enabling unchecked incomplete addition with any power-of-two generator.
 
 \subsection{Interactive Gadgets}
 
@@ -495,11 +511,11 @@ For this to have an attack in polylogarithmic time, it'd presumably need to be c
 
 We use elliptic curve divisors, as posited by Liam Eagen (https://eprint.iacr.org/2022/596).
 
-\newcommand{\dloglhs}{\mathsf{DivisorChallenge}}
+\newcommand{\dloglhs}{\mathsf{DivisorChallenge_{a,b}}}
 
 $\dloglhs(d_y, d_{yx_{0..m}}, d_{x_{1..n}}, d_0, \delta, \chl) \rightarrow$
 
-$~~p_{0_{n_0}} = (3 * x^2 + A) / (2 * y)$
+$~~p_{0_{n_0}} = (3 * \chl\mathsf{.x}^2 + a * \chl\mathsf{.x} + b) / (2 * \chl\mathsf{.y})$
 
 $~~p_{0_{n_1}} = \sum^m_{j=0} (p_{0_{n_w}} * x^{j+1}) * d_{yx_j} + (p_{0_{n_w}} * d_y)$
 
@@ -519,7 +535,7 @@ $~~p_0 = \aol$
 
 $~~p_{1_n} = 2 * \chl\mathsf{.y}$
 
-$~~p_{1_d} = (-\delta \cdot p_{1_n}) + 3 * \chl\mathsf{.x} + A$
+$~~p_{1_d} = (-\delta \cdot p_{1_n}) + 3 * \chl\mathsf{.x}^2 + 2 * a * \chl\mathsf{.x} + b$
 
 $~~p_{1_d} = \inverse(p_{1_d})$
 
@@ -537,17 +553,19 @@ $~~\mathsf{return} ~\aol$
 
 $d_y, d_{yx}, d_x, d_0$ are the coefficients for the divisor (zero-indexed, such that $d_{x_0}$ is the coefficient for $x^1$). The divisor is enforced to be non-zero by using $1$ for the coefficient for $x^1$.
 
-$A$ is the $A$ from the curve equation $y^2 = x^3 + A * x + B$.
+$a, b$ are the $a, b$ from the curve equation $y^2 = x^3 + a * x^2 + b * x + c$.
 
 Please note we define linear combinations $p_{0_n}, p_{0_d}, p_0, p_{1_n}, p_{1_d}, p_1$, push them as if they were values (which they can be to the prover), and then constrain off them as linear combinations.
 
-\newcommand{\dlog}{\mathsf{DiscreteLog_{G}}}
+\newcommand{\circuitin}{\leftarrow \mathsf{Prover ~(Vector ~Commitment)}}
 
-$\dlog(d_y, d_{yx_{0..m}}, d_{x_{1..n}}, d_0, s_{0..255}, x, y) \rightarrow$
+\newcommand{\dlog}{\mathsf{DiscreteLog}}
 
-$~~\forall ~0 <= i < 255:$
+$\dlog_G(s_{0..255}, x, y) \rightarrow$
 
-$~~~~\bit(s_i)$
+$~~\oncurve(x, y)$
+
+$~~d_y, d_{yx_{0..m}}, d_{x_{1..n}}, d_0 \circuitin$
 
 $~~\chl_0 = \mathcal{H}_{point}(\chl_0)$
 
@@ -561,7 +579,9 @@ $~~\mu = \chl_1.y - (\delta * \chl_1.x)$
 
 $~~\sum^2_{i=0} \dloglhs(d_y, d_{yx}, d_x, d_0, \delta, \chl_i) ~-~ \sum^{254}_{i=0} (\mu ~-~ (G_i\mathsf{.y} ~-~ (\delta ~*~ G_i\mathsf{.x})))^{-1} ~*~ s_i = 0$
 
-For a generator $G$, both the prover and the verifier calculate $G_0 = 2^0 \cdot G, ...,G_{254} = 2^{254} \cdot G$. For a scalar for the embedded curve $s$, the prover creates a 255-bit decomposition $b_0, ..., b_{254}$. The prover creates a Pedersen vector commitment for the bits and the divisor interpolating $s \cdot G$ with the relevant powers of $G$.
+This has the precondition $s$ is constrained to be a valid bitstring with more than one bit set.
+
+For a generator $G$, both the prover and the verifier calculate $G_0 = 2^0 \cdot G, ...,G_{254} = 2^{254} \cdot G$. The prover provides $s$, the 255-bit decomposition of a scalar for the embedded elliptic curve, and the divisor interpolating $s \cdot G$ with the relevant powers of $G$ within Pedersen vector commitments.
 
 We then perform a challenged evaluation of the divisor, and for the right-hand side compared to (the sum of each interpolated point also so challenged), we only include terms selected by the bits.
 
@@ -572,11 +592,11 @@ Please note if this discrete log is reused in other proofs, it's unnecessary to 
 
 \subsubsection{Discrete Log Proof of Knowledge}
 
-\newcommand{\dlogpok}{\mathsf{DiscreteLogProofOfKnowledge_G}}
+\newcommand{\dlogpok}{\mathsf{DiscreteLogProofOfKnowledge}}
 
-$\dlogpok(d_y, d_{yx_{0..m}}, d_{x_{1..n}}, d_0, s_{0..255}, x, y) \rightarrow$
+$\dlogpok_G(s_{0..255}, x, y) \rightarrow$
 
-$~~\dlog(d_y, d_{yx}, d_x, d_0, s, x, y)$
+$~~\dlog_G(s, x, y)$
 
 For now, $\dlogpok = \dlog$ (inheriting its preconditions and argument formatting). In the future, another option may be notably more efficient.
 
@@ -592,29 +612,85 @@ We define two distinct layer gadgets, one for the first layer (which ensures the
 
 \subsubsection{First Layer}
 
-\begin{itemize}
-	\item Define $r_o \cdot T, r_c \cdot G, r_j \cdot T$ in-circuit, constrain them on curve, and prove knowledge of the discrete logarithms.
-	\item Define $r_i \cdot U$ in-circuit, constrain it on curve, and prove the bit decomposition of $r_i$ the discrete logarithm of $r_i \cdot U$ over $U$.
-	\item For the input tuple $\tilde{O}, \tilde{I}, \tilde{C}, R$, prove the $x$-coordinate of $r_o \cdot T$ distinct from the $x$-coordinate of $\tilde{O}$, the $x$-coordinate of $r_i \cdot U$ distinct from the $x$-coordinate of $\tilde{I}$, the $x$-coordinate of $r_c \cdot G$ distinct from the $x$-coordinate of $\tilde{C}$, and the $x$-coordinate of $R$ distinct from the $x$-coordinate of $r_j \cdot T$.
-	\item Prove the bit decomposition of $r_i$ (already decomposed and validated as a bitstring) is the discrete logarithm of $R - (r_j \cdot T)$ over $V$.
-	\item Perform incomplete addition of $\tilde{O}$ with $-(r_o \cdot T)$ to obtain $O$, $\tilde{I}$ with $-(r_i \cdot U)$ to obtain $I$, and $\tilde{C}$ with $-(r_c \cdot G)$ to obtain $C$.
-	\item Prove $O, C$ permissible for hashing.
-	\item Perform tuple set membership with $(O.x, I.x, I.y, C.x)$ within a Pedersen vector commitment. This is the hash for the next layer.
-\end{itemize}
+$\mathsf{FirstLayer}(\tilde{O}, \tilde{I}, \tilde{C}, R) \rightarrow$
+
+$~~o_x, o_y, r_{o_{0..255}}, r_{o_x}, r_{o_y}\circuitin$
+
+$~~\oncurve(o_x, o_y)$
+
+$~~\dlogbits(r_o)$
+
+$~~\dlogpok_T(r_o, r_{o_x}, r_{o_y})$
+
+$~~\incompleteadd(o_x, o_y, r_{o_x}, r_{o_y}, \tilde{O}\mathsf{.x}, \tilde{O}\mathsf{.y})$
+
+$ $
+
+$~~i_x, i_y, r_{i_{0..255}}, r_{i_{u_x}}, r_{i_{u_y}}, r_{i_{v_x}}, r_{i_{v_y}}\circuitin$
+
+$~~\oncurve(i_x, i_y)$
+
+$~~\dlogbits(r_i)$
+
+$~~\dlog_U(r_i, r_{i_{u_x}}, r_{i_{u_y}})$
+
+$~~\dlog_V(r_i, r_{i_{v_x}}, r_{i_{v_y}})$
+
+$~~\incompleteadd(i_x, i_y, r_{i_{u_x}}, r_{i_{u_y}}, \tilde{I}\mathsf{.x}, \tilde{I}\mathsf{.y})$
+
+$ $
+
+$~~r_{j_{0..255}}, r_{j_x}, r_{j_y}\circuitin$
+
+$~~\dlogbits(r_j)$
+
+$~~\dlogpok_T(r_j, r_{j_x}, r_{j_y})$
+
+$~~\incompleteadd(r_{i_{v_x}}, r_{i_{v_y}}, r_{j_x}, r_{j_y}, R\mathsf{.x}, R\mathsf{.y})$
+
+$ $
+
+$~~c_x, c_y, r_{c_{0..255}}, r_{c_x}, r_{c_y}\circuitin$
+
+$~~\oncurve(c_x, c_y)$
+
+$~~\dlogbits(r_c)$
+
+$~~\dlogpok_G(r_c, r_{c_x}, r_{c_y})$
+
+$~~\incompleteadd(c_x, c_y, r_{c_x}, r_{c_y}, \tilde{C}\mathsf{.x}, \tilde{C}\mathsf{.y})$
+
+$ $
+
+$~~\permissible(o_y)$
+
+$~~\permissible(c_y)$
+
+$~~L\circuitin$
+
+$~~\tuplememberlist(L, (o_x, i_x, i_y, c_x))$
 
 \subsubsection{Additional Layer}
 
-\begin{itemize}
-	\item Define randomness $(r_x, r_y)$ and constrain it's on curve.
-	\item Prove knowledge of the discrete logarithm of $(r_x, r_y)$.
-	\item Take the blinded Pedersen hash from the prior layer and enforce its $x$ coordinate is inequal to $r_x$. Then perform incomplete addition with $(r_x, -r_y)$.
-	
-	We do not need to check the blinded Pedersen hash is on-curve in-circuit as we can verify that out of circuit.
-	\item With the unblinded Pedersen hash's $x, y$ coordinates, prove it permissible.
-	\item Perform set membership of the unblinded Pedersen's hash $x$ coordinate over the members in a Pedersen Vector Commitment (the new blinded Pedersen hash).
-\end{itemize}
+$\mathsf{AdditionalLayer}(\tilde{H}) \rightarrow$
 
-\newpage
+$~~h_x, h_y, r_{0..255}, r_x, r_y\circuitin$
+
+$~~\dlogbits(r)$
+
+$~~\dlogpok_H(r, r_x, r_y)$
+
+$~~\incompleteadd(h_x, h_y, r_x, r_y, \tilde{H}\mathsf{.x}, \tilde{H}\mathsf{.y})$
+
+$ $
+
+$~~\permissible(h_y)$
+
+$~~L\circuitin$
+
+$~~\memberlist(L, h_x)$
+
+Please note $\tilde{H}$ is the prior layer's blinded hash and $H$ is the blinding generator (not the unblinded hash, which is $h_x, h_y$).
 
 \section{Functionality}
 
