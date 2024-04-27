@@ -489,15 +489,25 @@ Please note the notation here is an evolution of prior syntax. Arguments are gen
 
 For this to have an attack in polylogarithmic time, it'd presumably need to be converted to the birthday problem. Since changing the tuple claimed to be a member (the left-hand side) changes the effective list (each member being a potential right-hand side), the two sides aren't independent and Wagner's algorithm isn't usable to find an efficient solution.
 
+\newpage
+
 \subsubsection{Discrete Log Proof}
+
+We use elliptic curve divisors, as posited by Liam Eagen (https://eprint.iacr.org/2022/596).
 
 \newcommand{\dloglhs}{\mathsf{DivisorChallenge}}
 
-$\dloglhs(n_{y_{0..2}}, n_{yx_{0..m}}, n_{x_{1..n}}, n_0, d_{y_{0..2}}, d_{yx_{0..m}}, d_{x_{0..n}}, d_0, \delta, \chl) \rightarrow$
+$\dloglhs(d_y, d_{yx_{0..m}}, d_{x_{1..n}}, d_0, \delta, \chl) \rightarrow$
 
-$~~p_{0_n} = \sum^2_{i=0} \chl\mathsf{.y}^{(i+1)} * n_{y_{i}} + \sum^m_{i=0} (\chl\mathsf{.y} * \chl\mathsf{.x}^{(i+1)}) * n_{xy_{i}} + \sum^n_{i=1} \chl\mathsf{.x}^{(i+1)} * n_{x_{i}} + 1 * \chl\mathsf{.x} + 1 * n_0$
+$~~p_{0_{n_0}} = (3 * x^2 + A) / (2 * y)$
 
-$~~p_{0_d} = \sum^2_{i=0} \chl\mathsf{.y}^{(i+1)} * d_{y_{i}} + \sum^m_{i=0} (\chl\mathsf{.y} * \chl\mathsf{.x}^{(i+1)}) * d_{xy_{i}} + \sum^n_{i=0} \chl\mathsf{.x}^{(i+1)} * d_{x_{i}} + 1 * d_0$
+$~~p_{0_{n_1}} = \sum^m_{j=0} (p_{0_{n_w}} * x^{j+1}) * d_{yx_j} + (p_{0_{n_w}} * d_y)$
+
+$~~p_{0_{n_2}} = y * d_{yx_0} + \sum^m_{j=1} ((j+1) * y * x^j) * d_{yx_j} + \sum^n_{i=1} ((i+1) * x^i) * d_{x_i} + 1$
+
+$~~p_{0_n} = p_{0_{n_1}} + p_{0_{n_2}}$
+
+$~~p_{0_d} = \chl\mathsf{.y} * d_y + \sum^m_{i=0} (\chl\mathsf{.y} * \chl\mathsf{.x}^{(i+1)}) * d_{xy_{i}} + \sum^n_{i=1} \chl\mathsf{.x}^{(i+1)} * d_{x_{i}} + 1 * \chl\mathsf{.x} + 1 * d_0$
 
 $~~p_{0_d} = \inverse(p_{0_d})$
 
@@ -525,7 +535,7 @@ $~~\equality(\ar(p_1), p_1)$
 
 $~~\mathsf{return} ~\aol$
 
-$n, d$ are the coefficients for the numerator and the denominator of the first fraction from formula 1 of https://eprint.iacr.org/2022/596. $d$ is checked to be non-zero by the creation of the inverse, and $n$ is enforced to be non-zero by using $1$ for the coefficient for $x^1$.
+$d_y, d_{yx}, d_x, d_0$ are the coefficients for the divisor (zero-indexed, such that $d_{x_0}$ is the coefficient for $x^1$). The divisor is enforced to be non-zero by using $1$ for the coefficient for $x^1$.
 
 $A$ is the $A$ from the curve equation $y^2 = x^3 + A * x + B$.
 
@@ -533,7 +543,7 @@ Please note we define linear combinations $p_{0_n}, p_{0_d}, p_0, p_{1_n}, p_{1_
 
 \newcommand{\dlog}{\mathsf{DiscreteLog_{G}}}
 
-$\dlog(n_{y_{0..2}}, n_{yx_{0..m}}, n_{x_{1..n}}, n_0, d_{y_{0..2}}, d_{yx_{0..m}}, d_{x_{0..n}}, d_0, s_{0..255}, x, y) \rightarrow$
+$\dlog(d_y, d_{yx_{0..m}}, d_{x_{1..n}}, d_0, s_{0..255}, x, y) \rightarrow$
 
 $~~\forall ~0 <= i < 255:$
 
@@ -549,9 +559,7 @@ $~~\delta = (\chl_1\mathsf{.y} - \chl_0\mathsf{.y}) * (\chl_1\mathsf{.x} - \chl_
 
 $~~\mu = \chl_1.y - (\delta * \chl_1.x)$
 
-$~~\sum^2_{i=0} \dloglhs(n_y, n_{yx}, n_x, n_0, d_y, d_{yx}, d_x, d_0, \delta, \chl_i) ~+~ \sum^{254}_{i=0} (\mu ~-~ (G_i\mathsf{.y} ~-~ (\delta ~*~ G_i\mathsf{.x})))^{-1} ~*~ s_i = 0$
-
-We use elliptic curve divisors, as posited by Liam Eagen (https://eprint.iacr.org/2022/596).
+$~~\sum^2_{i=0} \dloglhs(d_y, d_{yx}, d_x, d_0, \delta, \chl_i) ~-~ \sum^{254}_{i=0} (\mu ~-~ (G_i\mathsf{.y} ~-~ (\delta ~*~ G_i\mathsf{.x})))^{-1} ~*~ s_i = 0$
 
 For a generator $G$, both the prover and the verifier calculate $G_0 = 2^0 \cdot G, ...,G_{254} = 2^{254} \cdot G$. For a scalar for the embedded curve $s$, the prover creates a 255-bit decomposition $b_0, ..., b_{254}$. The prover creates a Pedersen vector commitment for the bits and the divisor interpolating $s \cdot G$ with the relevant powers of $G$.
 
@@ -566,15 +574,17 @@ Please note if this discrete log is reused in other proofs, it's unnecessary to 
 
 \newcommand{\dlogpok}{\mathsf{DiscreteLogProofOfKnowledge_G}}
 
-$\dlogpok(n_{y_{0..2}}, n_{yx_{0..m}}, n_{x_{1..n}}, n_0, d_{y_{0..2}}, d_{yx_{0..m}}, d_{x_{0..n}}, d_0, s_{0..255}, x, y) \rightarrow$
+$\dlogpok(d_y, d_{yx_{0..m}}, d_{x_{1..n}}, d_0, s_{0..255}, x, y) \rightarrow$
 
-$~~\dlog(n_y, n_{yx}, n_x, n_0, d_y, d_{yx}, d_x, d_0, s, x, y)$
+$~~\dlog(d_y, d_{yx}, d_x, d_0, s, x, y)$
 
 For now, $\dlogpok = \dlog$ (inheriting its preconditions and argument formatting). In the future, another option may be notably more efficient.
 
 $\dlog$ takes the logarithmic derivative of $D(C_0) * D(C_1) * D(C_2) = \prod_{i=0}^{254}(\mu - Z(G_i))$, where $D$ is the divisor, to enable evaluation with a linear combination (instead of hundreds of in-circuit multiplications).
 
 Eagen's work has an $x$-only divisor equation of $D(C) * D(-C) = \prod_{i=0}^{254}(C.x - G_i.x)$. If we instead take the logarithmic derivative of that, the proof loses the ability to differentiate $G_i.x$ from $(-G_i).x$. We can use this to generate a trinary system $-1, 0, 1$ with $161$ powers of $G$ ($G, 3 \cdot G, 9 \cdot G$) which generates nearly the same $2^{255}$ group, yet with only $161$ trits. Since we cannot distinguish $-1$ form $1$, the prover only has to commit to them as bits, saving 94 in-circuit multiplications. It still satisfies as a proof of knowledge for the discrete log, despite not being binding to the discrete log.
+
+\newpage
 
 \subsection{Circuit}
 
