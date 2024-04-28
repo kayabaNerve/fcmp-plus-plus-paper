@@ -463,22 +463,6 @@ Full credit to this idea goes to the authors of Curve Trees, https://eprint.iacr
 
 \newpage
 
-\subsubsection{Discrete Logarithm Bitstring}
-
-\newcommand{\dlogbits}{\mathsf{DiscreteLogarithmBitstring}}
-
-$\dlogbits(d_{0..255}) \rightarrow$
-
-$~~\forall ~0 <= i < 255:$
-
-$~~~~\bit(d_i)$
-
-$~~\inequality(\sum^{254}_{i=0} d_i, 0)$
-
-$~~\inequality(\sum^{254}_{i=0} d_i, 1)$
-
-This proves a claimed discrete logarithm (represented as a bitstring) is in fact a bitstring. It also proves that at least two bits are set, enabling unchecked incomplete addition with any power-of-two generator.
-
 \subsection{Interactive Gadgets}
 
 \newcommand{\chl}{\mathsf{chl}}
@@ -575,20 +559,20 @@ $~~\chl_2 = -(\chl_0 + \chl_1)$
 
 $~~\delta = (\chl_1\mathsf{.y} - \chl_0\mathsf{.y}) * (\chl_1\mathsf{.x} - \chl_0\mathsf{.x})^{-1}$
 
-$~~\mu = \chl_1.y - (\delta * \chl_1.x)$
+$~~\mu = \chl_1\mathsf{.y} - (\delta * \chl_1\mathsf{.x})$
 
-$~~\sum^2_{i=0} \dloglhs(d_y, d_{yx}, d_x, d_0, \delta, \chl_i) ~-~ \sum^{254}_{i=0} (\mu ~-~ (G_i\mathsf{.y} ~-~ (\delta ~*~ G_i\mathsf{.x})))^{-1} ~*~ s_i = 0$
+$~~f = Inverse(\mu ~-~ (y ~-~ (\delta ~*~ x)))$
 
-This has the precondition $s$ is constrained to be a valid bitstring with more than one bit set.
+$~~\sum^2_{i=0} \dloglhs(d_y, d_{yx}, d_x, d_0, \delta, \chl_i) ~-~ \sum^{254}_{i=0} (\mu ~-~ (G_i\mathsf{.y} ~-~ (\delta ~*~ G_i\mathsf{.x})))^{-1} ~*~ s_i - ~f= 0$
 
-For a generator $G$, both the prover and the verifier calculate $G_0 = 2^0 \cdot G, ...,G_{254} = 2^{254} \cdot G$. The prover provides $s$, the 255-bit decomposition of a scalar for the embedded elliptic curve, and the divisor interpolating $s \cdot G$ with the relevant powers of $G$ within Pedersen vector commitments.
+For a generator $G$, both the prover and the verifier calculate $G_0 = 2^0 \cdot G, ...,G_{254} = 2^{254} \cdot G$. The prover provides $s$, the presumed 255-bit decomposition of a scalar for the embedded elliptic curve, and the divisor interpolating $s \cdot G$ with the relevant powers of $G$ within Pedersen vector commitments.
 
 We then perform a challenged evaluation of the divisor, and for the right-hand side compared to (the sum of each interpolated point also so challenged), we only include terms selected by the bits.
 
 While evaluating divisors (a polynomial), we consider the evaluation not as $a * x^2 + b * x + c$, yet $x^2 * a + x * b + c$. The latter lines up with the constraint system's definition (since our $x$ is public).
 For each $C_i$,
 
-Please note if this discrete log is reused in other proofs, it's unnecessary to again prove it's a valid bitstring.
+This does prove $s$ is in fact the 255-bit decomposition of the discrete logarithm. It proves $s$ a consistent represent of the discrete logarithm when used with powers of two of a generator. Each entry within $s$ may be malleated.
 
 \subsubsection{Discrete Log Proof of Knowledge}
 
@@ -598,11 +582,11 @@ $\dlogpok_G(s_{0..255}, x, y) \rightarrow$
 
 $~~\dlog_G(s, x, y)$
 
-For now, $\dlogpok = \dlog$ (inheriting its preconditions and argument formatting). In the future, another option may be notably more efficient.
+For now, $\dlogpok = \dlog$ (inheriting its preconditions and argument formatting). In the future, another option may be more efficient.
 
 $\dlog$ takes the logarithmic derivative of $D(C_0) * D(C_1) * D(C_2) = \prod_{i=0}^{254}(\mu - Z(G_i))$, where $D$ is the divisor, to enable evaluation with a linear combination (instead of hundreds of in-circuit multiplications).
 
-Eagen's work has an $x$-only divisor equation of $D(C) * D(-C) = \prod_{i=0}^{254}(C.x - G_i.x)$. If we instead take the logarithmic derivative of that, the proof loses the ability to differentiate $G_i.x$ from $(-G_i).x$. We can use this to generate a trinary system $-1, 0, 1$ with $161$ powers of $G$ ($G, 3 \cdot G, 9 \cdot G$) which generates nearly the same $2^{255}$ group, yet with only $161$ trits. Since we cannot distinguish $-1$ form $1$, the prover only has to commit to them as bits, saving 94 in-circuit multiplications. It still satisfies as a proof of knowledge for the discrete log, despite not being binding to the discrete log.
+Eagen's work has an $x$-only divisor equation of $D(C) * D(-C) = \prod_{i=0}^{254}(C.x - G_i.x)$. If we instead take the logarithmic derivative of that, the proof loses the ability to differentiate $G_i.x$ from $(-G_i).x$. We can use this to generate a trinary system $-1, 0, 1$ with $161$ powers of $G$ ($G, 3 \cdot G, 9 \cdot G$) which generates nearly the same $2^{255}$ group, yet with only $161$ trits (which can be collapsed to bits due to the lack of ability to distinguish $-1$ from $1$). Not only does mean less work calculating the divisor, the evaluation of the challenge is also simpler.
 
 \newpage
 
@@ -618,8 +602,6 @@ $~~o_x, o_y, r_{o_{0..255}}, r_{o_x}, r_{o_y}\circuitin$
 
 $~~\oncurve(o_x, o_y)$
 
-$~~\dlogbits(r_o)$
-
 $~~\dlogpok_T(r_o, r_{o_x}, r_{o_y})$
 
 $~~\incompleteadd(o_x, o_y, r_{o_x}, r_{o_y}, \tilde{O}\mathsf{.x}, \tilde{O}\mathsf{.y})$
@@ -629,8 +611,6 @@ $ $
 $~~i_x, i_y, r_{i_{0..255}}, r_{i_{u_x}}, r_{i_{u_y}}, r_{i_{v_x}}, r_{i_{v_y}}\circuitin$
 
 $~~\oncurve(i_x, i_y)$
-
-$~~\dlogbits(r_i)$
 
 $~~\dlog_U(r_i, r_{i_{u_x}}, r_{i_{u_y}})$
 
@@ -642,8 +622,6 @@ $ $
 
 $~~r_{j_{0..255}}, r_{j_x}, r_{j_y}\circuitin$
 
-$~~\dlogbits(r_j)$
-
 $~~\dlogpok_T(r_j, r_{j_x}, r_{j_y})$
 
 $~~\incompleteadd(r_{i_{v_x}}, r_{i_{v_y}}, r_{j_x}, r_{j_y}, R\mathsf{.x}, R\mathsf{.y})$
@@ -653,8 +631,6 @@ $ $
 $~~c_x, c_y, r_{c_{0..255}}, r_{c_x}, r_{c_y}\circuitin$
 
 $~~\oncurve(c_x, c_y)$
-
-$~~\dlogbits(r_c)$
 
 $~~\dlogpok_G(r_c, r_{c_x}, r_{c_y})$
 
@@ -675,8 +651,6 @@ $~~\tuplememberlist(L, (o_x, i_x, i_y, c_x))$
 $\mathsf{AdditionalLayer}(\tilde{H}) \rightarrow$
 
 $~~h_x, h_y, r_{0..255}, r_x, r_y\circuitin$
-
-$~~\dlogbits(r)$
 
 $~~\dlogpok_H(r, r_x, r_y)$
 
@@ -702,7 +676,7 @@ This is the reason for discussing this in the first place.
 
 \subsection{Hardware Wallets}
 
-Hardware wallets maintain their support due to not needing to perform the membership proof, solely the Generalized Schnorr Protocol after the fact. The Generalized Schnorr Protocol is smaller than the current CLSAG proofs, and is accordingly assumed to be well within the allowed memory footprint. It is only one point larger than the proposed Seraphis ownership proof.
+Hardware wallets maintain their support due to not needing to perform the membership proof, solely the Generalized Schnorr Protocol after the fact. The Generalized Schnorr Protocol is smaller than the current CLSAG proofs, and is accordingly assumed to be well within the allowed memory footprint.
 
 \subsection{Multisignature Protocols}
 
@@ -886,8 +860,8 @@ Multi-party transaction construction isn't modified. The actual signing code is 
 
 Monero can deploy Seraphis, the codebase, in the future. The improvements to transaction construction, and sender-receiver communication (regarding one-time keys and shared secrets), are well-reasoned for Monero and desirable.
 
-Monero can also still deploy Seraphis, the linking tag format, requiring a migration and new addresses. That may offer more efficient membership proofs/a better choice of elliptic curves (better choice throughout the project, not just regarding membership). Generalized Bulletproofs, the gadgets described, and the additional layer circuit section would all be used for a deployment of FCMPs with Seraphis. We'd solely have to simplify the first layer circuit section. The usage of Generalized Schnorr Protocols has also been proposed with Seraphis, which would make an implementation of them from this work potentially reusable.
+Monero can also still deploy Seraphis, the linking tag format, requiring a migration and new addresses. That may offer a better choice of elliptic curves (better choice throughout the project, not just regarding membership). Generalized Bulletproofs, the gadgets described, and the additional layer circuit section would all be used for a deployment of FCMPs with Seraphis. We'd solely have to simplify the first layer circuit section (achieving a roughly 10\% smaller layer, assuming a lack of aggregation of discrete log claims). The usage of Generalized Schnorr Protocols has also been proposed with Seraphis, which would make an implementation of them from this work potentially reusable.
 
-JAMTIS can also still be deployed (over FCMP++s or over Seraphis).
+JAMTIS can also still be deployed (over FCMP++s or over Seraphis with FCMPs).
 
 \end{document}
