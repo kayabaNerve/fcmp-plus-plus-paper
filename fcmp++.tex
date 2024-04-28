@@ -509,29 +509,27 @@ $~~p_{0_n} = p_{0_{n_1}} + p_{0_{n_2}}$
 
 $~~p_{0_d} = \chl\mathsf{.y} * d_y + \sum^m_{i=0} (\chl\mathsf{.y} * \chl\mathsf{.x}^{(i+1)}) * d_{xy_{i}} + \sum^n_{i=1} \chl\mathsf{.x}^{(i+1)} * d_{x_{i}} + 1 * \chl\mathsf{.x} + 1 * d_0$
 
-$~~p_{0_d} = \inverse(p_{0_d})$
-
-$~~\equality(\al(p_{0_n}), p_{0_n})$
-
-$~~\equality(\ar(p_{0_d}), p_{0_d})$
-
-$~~p_0 = \aol$
-
 $~~p_{1_n} = 2 * \chl\mathsf{.y}$
 
 $~~p_{1_d} = (-\delta \cdot p_{1_n}) + 3 * \chl\mathsf{.x}^2 + 2 * a * \chl\mathsf{.x} + b$
 
-$~~p_{1_d} = \inverse(p_{1_d})$
+$~~\equality(\al(p_{0_n}), p_{0_n})$
 
-$~~\equality(\al(p_{1_n}), p_{1_n})$
+$~~\equality(\ar(p_{1_n}), p_{1_n})$
+
+$~~p_n = \aol$
+
+$~~\equality(\al(p_{0_d}), p_{0_d})$
 
 $~~\equality(\ar(p_{1_d}), p_{1_d})$
 
-$~~p_1 = \aol$
+$~~p_d = \aol$
 
-$~~\equality(\al(p_0), p_0)$
+$~~p_d = \inverse(p_d)$
 
-$~~\equality(\ar(p_1), p_1)$
+$~~\equality(\al(p_n), p_n)$
+
+$~~\equality(\ar(p_d), p_d)$
 
 $~~\mathsf{return} ~\aol$
 
@@ -561,7 +559,7 @@ $~~\delta = (\chl_1\mathsf{.y} - \chl_0\mathsf{.y}) * (\chl_1\mathsf{.x} - \chl_
 
 $~~\mu = \chl_1\mathsf{.y} - (\delta * \chl_1\mathsf{.x})$
 
-$~~f = Inverse(\mu ~-~ (y ~-~ (\delta ~*~ x)))$
+$~~f = \inverse(\mu ~-~ (y ~-~ (\delta ~*~ x)))$
 
 $~~\sum^2_{i=0} \dloglhs(d_y, d_{yx}, d_x, d_0, \delta, \chl_i) ~-~ \sum^{254}_{i=0} (\mu ~-~ (G_i\mathsf{.y} ~-~ (\delta ~*~ G_i\mathsf{.x})))^{-1} ~*~ s_i - ~f= 0$
 
