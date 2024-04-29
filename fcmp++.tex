@@ -393,9 +393,9 @@ $~~\equality(x^2, x^2_2)$
 
 $~~\equality(x, x_4)$
 
-$~~-1 ~y^2 + 1 ~x^3 + a ~x^2 + b ~x + 1 ~c$
+$~~-1 ~y^2 + 1 ~x^3 + a ~x + 1 ~b$
 
-This evaluates the curve formula of the embedded curve (written in the form $y^2 = x^3 + a ~x^2 + b ~x + c$).
+This evaluates the curve formula of the embedded curve (written in the form $y^2 = x^3 + a ~x + b$).
 
 \newpage
 
@@ -499,7 +499,7 @@ We use elliptic curve divisors, as posited by Liam Eagen (https://eprint.iacr.or
 
 $\dloglhs(d_y, d_{yx_{0..m}}, d_{x_{1..n}}, d_0, \delta, \chl) \rightarrow$
 
-$~~p_{0_{n_0}} = (3 * \chl\mathsf{.x}^2 + a * \chl\mathsf{.x} + b) / (2 * \chl\mathsf{.y})$
+$~~p_{0_{n_0}} = (3 * \chl\mathsf{.x}^2 + a) / (2 * \chl\mathsf{.y})$
 
 $~~p_{0_{n_1}} = \sum^m_{j=0} (p_{0_{n_w}} * x^{j+1}) * d_{yx_j} + (p_{0_{n_w}} * d_y)$
 
@@ -511,7 +511,7 @@ $~~p_{0_d} = \chl\mathsf{.y} * d_y + \sum^m_{i=0} (\chl\mathsf{.y} * \chl\mathsf
 
 $~~p_{1_n} = 2 * \chl\mathsf{.y}$
 
-$~~p_{1_d} = (-\delta \cdot p_{1_n}) + 3 * \chl\mathsf{.x}^2 + 2 * a * \chl\mathsf{.x} + b$
+$~~p_{1_d} = (-\delta \cdot p_{1_n}) + 3 * \chl\mathsf{.x}^2 + a$
 
 $~~\equality(\al(p_{0_n}), p_{0_n})$
 
@@ -535,7 +535,7 @@ $~~\mathsf{return} ~\aol$
 
 $d_y, d_{yx}, d_x, d_0$ are the coefficients for the divisor (zero-indexed, such that $d_{x_0}$ is the coefficient for $x^1$). The divisor is enforced to be non-zero by using $1$ for the coefficient for $x^1$.
 
-$a, b$ are the $a, b$ from the curve equation $y^2 = x^3 + a * x^2 + b * x + c$.
+$a, b$ are the $a, b$ from the curve equation $y^2 = x^3 + a * x + b$.
 
 Please note we define linear combinations $p_{0_n}, p_{0_d}, p_0, p_{1_n}, p_{1_d}, p_1$, push them as if they were values (which they can be to the prover), and then constrain off them as linear combinations.
 
