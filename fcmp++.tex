@@ -769,13 +769,15 @@ For each branch hash modified from $H$ to $H'$, calculate $H'.x - H.x$, the delt
 
 \subsection{Permissibility}
 
-For an input tuple $(O, I, C)$, $O, T$ must be permissible before they can be hashed into the tree. $O$ has $T$ added until it's permissible, where for $O = x \cdot G + y \cdot T$, $y$ is incremented as many times as $T$ was added. $C$ has $G$ added until it's permissible, where for $C = r \cdot G + a \cdot H$, $r$ (the commitment mask) is incremented as many times as $G$ was added.
+For an input tuple $(O, I, C)$, $O, C$ must be permissible (as defined by the permissible gadget) before they can be hashed into the tree. $O$ has $T$ added until it's permissible, where for $O = x \cdot G + y \cdot T$, $y$ is incremented as many times as $T$ was added. $C$ has $G$ added until it's permissible, where for $C = r \cdot G + a \cdot H$, $r$ (the commitment mask) is incremented as many times as $G$ was added.
 
 The hash functions, outputting points, are programmed to only output permissible points.
 
 \subsubsection{Initialization}
 
 When an instance of monerod boots with the tree code, it will immediately start indexing every block since genesis. Cryptonote outputs will be accumulated as the key, the linking tag generator, and a Pedersen commitment for the amount (with a randomness of zero). RingCT outputs will be accumulated as the key, the linking tag generator, and their Pedersen commitment.
+
+In order to ensure a lack of torsion elements present, keys and commitments will be multiplied by the inverse of eight (Ed25519's cofactor) before being multiplied by eight (clearing any small-order components).
 
 \subsubsection{Normal Operation}
 
@@ -790,6 +792,14 @@ Preserving time-based timelocks would require defining a linked list where upon 
 \subsection{Input Modifications}
 
 To minimize modifications to inputs, FCMP++ inputs simply set the amount of key offsets 0.
+
+\subsection{Output Modifications}
+
+New outputs' keys are transmitted multiplied by the inverse of eight. When a wallet is scanning an output, it first multiplies the key by eight. Before addition to the tree, the key is multiplied by eight. This ensures a lack of torsion.
+
+We could also require output keys be permissible, yet doing so would interfere with the current scanning protocol
+
+Output commitments are already passed to the Bulletproof+ verifier multiplied by the inverse of eight. We either have commitments broadcast as such in the first place, or also pass this representation to the tree.
 
 \subsection{Modifications to RingCT Base}
 
