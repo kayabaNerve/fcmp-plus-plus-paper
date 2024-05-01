@@ -451,7 +451,7 @@ Full credit to this idea goes to the authors of Curve Trees, https://eprint.iacr
 
 The rest of the gadgets we define are interactive. This bounds all of their arguments to being within Pedersen vector commitments, and has them called with an additional, per-gadget series of challenges $\chl$. $\chl$ is derived from hashing all of the Pedersen vector commitments with per-gadget further derivation.
 
-\subsubsection{Tuple Member of Set}
+\subsubsection{Tuple Member of List}
 
 \newcommand{\tuplememberlist}{\mathsf{TupleMemberOfList}}
 
@@ -483,7 +483,7 @@ $\dloglhs(d_y, d_{yx_{0..m}}, d_{x_{1..n}}, d_0, \delta, \chl) \rightarrow$
 
 $~~p_{0_{n_0}} = (3 * \chl\mathsf{.x}^2 + a) / (2 * \chl\mathsf{.y})$
 
-$~~p_{0_{n_1}} = \sum^m_{j=0} (p_{0_{n_w}} * x^{j+1}) * d_{yx_j} + (p_{0_{n_w}} * d_y)$
+$~~p_{0_{n_1}} = \sum^m_{j=0} (p_{0_{n_0}} * x^{j+1}) * d_{yx_j} + (p_{0_{n_0}} * d_y)$
 
 $~~p_{0_{n_2}} = y * d_{yx_0} + \sum^m_{j=1} ((j+1) * y * x^j) * d_{yx_j} + \sum^n_{i=1} ((i+1) * x^i) * d_{x_i} + 1$
 
