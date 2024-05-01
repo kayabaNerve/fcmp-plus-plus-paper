@@ -232,7 +232,7 @@ We define an arithmetic circuit with two parts to its statement.
 	\item
 	$a_l * a_r = a_o$
 	
-	For vectors $a_l, a_r, a_o$, $a_o$ is the vector multiplication of $a_l, a_r$.
+	For vectors $a_l, a_r, a_o$, $a_o$ is the Hadamard product of $a_l, a_r$.
 	\item
 	$W_l * a_l + W_r * a_r + W_o * a_o + W_v * V = c$
 	
@@ -433,11 +433,11 @@ $~~r = \ar(sqrt(p))$
 
 $~~1 ~l + -1 ~r = 0$
 
-$~~1 ~\aol - a ~y = b$
+$~~1 ~\aol + -a ~y + -1 ~b = 0$
 
 In order to not have have to hash points as their $x$ and $y$ coordinates (which would require a tuple set membership invocation and increase the cost of calculating the Pedersen hash), we define an arithmetic hash ($(a * y) + b$) and use it such that for any $x$ coordinate, only one $y$ coordinate will be accepted. This lets us drop the $y$ coordinate without concern of the prover providing the negative $y$ coordinate (negating the discrete logarithms, enabling double spends).
 
-We consider a $y$ coordinate permissible if $\mathsf{permissible}(y)$ and $!\mathsf{permissible}(-y)$. This can be checked in-circuit with just one multiplication, making it incredibly efficient.
+In-circuit, we consider a $y$ coordinate permissible if it has a square root. This can be checked in-circuit with just one multiplication, making it incredibly efficient. Out-of-circuit, we consider a $y$ coordinate permissible if $\mathsf{permissible}(y)$ and $!\mathsf{permissible}(-y)$.
 
 This cannot be used with linking tag generators, yet can be used for all other points we hash.
 
@@ -824,7 +824,7 @@ Wallets would not only generate the new private key, $y$, they would also design
 
 \subsubsection{Forward Secrecy}
 
-Forward secrecy, if enabled on the protocol level, requires the modifications for outgoing view keys. No additional modifications are required.
+Forward secrecy requires a $T$ term be present within output keys. Practically, this can be achieved by doing the necessary modifications for outgoing view keys (which add such a term and the surrounding address/wallet modifications). No further modifications would be required.
 
 \subsection{Modifications to the RPC}
 
@@ -852,6 +852,8 @@ Monero can deploy Seraphis, the codebase, in the future. The improvements to tra
 
 Monero can also still deploy Seraphis, the linking tag format, requiring a migration and new addresses. That may offer a better choice of elliptic curves (better choice throughout the project, not just regarding membership). Generalized Bulletproofs, the gadgets described, and the additional layer circuit section would all be used for a deployment of FCMPs with Seraphis. We'd solely have to simplify the first layer circuit section (achieving a roughly 10\% smaller layer, assuming a lack of aggregation of discrete log claims). The usage of Generalized Schnorr Protocols has also been proposed with Seraphis, which would make an implementation of them from this work potentially reusable.
 
-JAMTIS can also still be deployed (over FCMP++s or over Seraphis with FCMPs).
+JAMTIS can also still be deployed (over FCMP++s or over Seraphis with FCMPs, as prior planned).
+
+https://gist.github.com/tevador/d4656a217c0177c160b9b6219d9ebb96 details JAMTIS as it would apply to this protocol.
 
 \end{document}
