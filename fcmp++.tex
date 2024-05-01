@@ -712,9 +712,9 @@ We expose the following external API, minimizing the intricacies of the tree:
   \item Grow.
   
   Grow incorporates a list of $n$ leaves (themselves tuples $(O, I, C)$) into the tree.
-  \item Prune.
+  \item Trim.
 
-  Prune removes a list of $n$ leaves from the tree.
+  Trim removes a list of the $n$ most-recently-added leaves from the tree.
 \end{itemize}
 
 With the tree calculation described, and the API defined, we now detail performant implementations of both functions. We take extensive advantage of how the hashes are additively homomorphic ($\mathcal{H}_{tree_c}([A, 0]) + \mathcal{H}_{tree_c}([0, B]) = \mathcal{H}_{tree_c}([A, B])$).
@@ -741,7 +741,7 @@ Please note this technically makes the width of the first layer $4 * w_a$, due t
 
 For each branch hash modified from $H$ to $H'$, calculate $H'.x - H.x$, the delta. With the proper alignment and chunking, hash the deltas and add the resulting hash to the proper branch hash on the next layer up. Repeat until the only hash modified is the new tree's root.
 
-\subsubsection{Prune}
+\subsubsection{Trim}
 
 \begin{enumerate}
   \item For every complete branch of leaves encompassed, remove them.
@@ -763,13 +763,13 @@ In order to ensure a lack of torsion elements present, keys and commitments will
 
 \subsubsection{Normal Operation}
 
-When a block achieves a depth of 10 (the constant 10 being from the 10-block lock), all outputs within it are used to grow the tree. On a reorganization exceeding 10 blocks, prune is called for the removed outputs. On a reorganization less than 10 blocks which shortens the length of the chain, prune is called for the outputs within blocks no-longer 10-deep.
+When a block achieves a depth of 10 (the constant 10 being from the 10-block lock), all outputs within it are used to grow the tree. On a reorganization exceeding 10 blocks, trim is called for the removed outputs. On a reorganization less than 10 blocks which shortens the length of the chain, trim is called for the outputs within blocks no-longer 10-deep.
 
 \subsubsection{Timelocks}
 
 If an output has a block-based timelock, it is set to be accumulated with the outputs of that block. If an output has a time-based timelock prior to the activation of the FCMP++ hard fork, it is converted to an estimated block-based timelock and accumulated with the outputs of that block. After the FCMP++ hard fork, time-based timelocks will be rejected entirely.
 
-Preserving time-based timelocks would require defining a linked list where upon block addition, we check if we should add the output at the head of the list (and any further outputs) to the tree. Unfortunately, such an implementation would be quite easy to perform denial-of-service attacks against. We could also define a vector, enabling efficient insertion, yet then we must define and maintain an unbounded global list which at best can be bucketed (though we'd need to prune from the head of the list, shifting the bucket(s)). With block-based timelocks, we still have the unbounded list commentary, yet have efficient topics (the block number) and no partial list additions. Accordingly, one is not worth the headache, and one has a tolerable headache.
+Preserving time-based timelocks would require defining a linked list where upon block addition, we check if we should add the output at the head of the list (and any further outputs) to the tree. Unfortunately, such an implementation would be quite easy to perform denial-of-service attacks against. We could also define a vector, enabling efficient insertion, yet then we must define and maintain an unbounded global list which at best can be bucketed (though we'd need to remove from the head of the list, shifting the bucket(s)). With block-based timelocks, we still have the unbounded list commentary, yet have efficient topics (the block number) and no partial list additions. Accordingly, one is not worth the headache, and one has a tolerable headache.
 
 \subsection{Input Modifications}
 
