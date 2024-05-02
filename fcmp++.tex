@@ -475,7 +475,13 @@ For this to have an attack in polylogarithmic time, it'd presumably need to be c
 
 \subsubsection{Discrete Log Proof}
 
-We use elliptic curve divisors, as posited by Liam Eagen (https://eprint.iacr.org/2022/596).
+We use elliptic curve divisors, as posited by Liam Eagen (https://eprint.iacr.org/2022/596), to prove for the statement:
+
+$$
+\{ x, y; s_{0..255} | (x, y) = \sum^{255}_{i=0} 2^i * s_i \cdot G \}
+$$
+
+The scalar represented by $s$, $s'$, is equal to $\sum^{255}_{i=0} 2^i * s_i$. Since we do not constrain $s$ to being a valid bitstring, each $s'$ has effectively infinite representations which can be used for $s$. We solely require $s'$ not be malleable (for a given $s$, the prover should not be able to prove for multiple $s'$).
 
 \newcommand{\dloglhs}{\mathsf{DivisorChallenge_{a,b}}}
 
@@ -550,9 +556,6 @@ For a generator $G$, both the prover and the verifier calculate $G_0 = 2^0 \cdot
 We then perform a challenged evaluation of the divisor, and for the right-hand side compared to (the sum of each interpolated point also so challenged), we only include terms selected by the bits.
 
 While evaluating divisors (a polynomial), we consider the evaluation not as $a * x^2 + b * x + c$, yet $x^2 * a + x * b + c$. The latter lines up with the constraint system's definition (since our $x$ is public).
-For each $C_i$,
-
-This does prove $s$ is in fact the 255-bit decomposition of the discrete logarithm. It proves $s$ a consistent represent of the discrete logarithm when used with powers of two of a generator. Each entry within $s$ may be malleated.
 
 \subsubsection{Discrete Log Proof of Knowledge}
 
