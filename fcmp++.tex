@@ -478,10 +478,10 @@ For this to have an attack in polylogarithmic time, it'd presumably need to be c
 We use elliptic curve divisors, as posited by Liam Eagen (https://eprint.iacr.org/2022/596), to prove for the statement:
 
 $$
-\{ x, y; s_{0..255} | (x, y) = \sum^{255}_{i=0} 2^i * s_i \cdot G \}
+\{ q, x, y; s_{0..256} | (x, y) = ((\sum^{255}_{i=0} 2^i * s_i) \mod q) \cdot G \}
 $$
 
-The scalar represented by $s$, $s'$, is equal to $\sum^{255}_{i=0} 2^i * s_i$. Since we do not constrain $s$ to being a valid bitstring, each $s'$ has effectively infinite representations which can be used for $s$. We solely require $s'$ not be malleable (for a given $s$, the prover should not be able to prove for multiple $s'$).
+The scalar represented by $s$, $s'$, is equal to $\sum^{255}_{i=0} 2^i * s_i \mod q$, where $q$ is the order of the elliptic curve. Since we do not constrain $s$ to being a valid bitstring, each $s'$ has effectively infinite representations which can be used for $s$. We solely require $s'$ not be malleable (for a given $s$, the prover should not be able to prove for multiple $s'$).
 
 \newcommand{\dloglhs}{\mathsf{DivisorChallenge_{a,b}}}
 
@@ -531,7 +531,7 @@ Please note we define linear combinations $p_{0_n}, p_{0_d}, p_0, p_{1_n}, p_{1_
 
 \newcommand{\dlog}{\mathsf{DiscreteLog}}
 
-$\dlog_G(s_{0..255}, x, y) \rightarrow$
+$\dlog_G(s_{0..256}, x, y) \rightarrow$
 
 $~~\oncurve(x, y)$
 
@@ -549,9 +549,9 @@ $~~\mu = \chl_1\mathsf{.y} - (\delta * \chl_1\mathsf{.x})$
 
 $~~f = \inverse(\mu ~-~ (y ~-~ (\delta ~*~ x)))$
 
-$~~\sum^2_{i=0} \dloglhs(d_y, d_{yx}, d_x, d_0, \delta, \chl_i) ~-~ \sum^{254}_{i=0} (\mu ~-~ (G_i\mathsf{.y} ~-~ (\delta ~*~ G_i\mathsf{.x})))^{-1} ~*~ s_i - ~f= 0$
+$~~\sum^2_{i=0} \dloglhs(d_y, d_{yx}, d_x, d_0, \delta, \chl_i) ~-~ \sum^{255}_{i=0} (\mu ~-~ (G_i\mathsf{.y} ~-~ (\delta ~*~ G_i\mathsf{.x})))^{-1} ~*~ s_i - ~f= 0$
 
-For a generator $G$, both the prover and the verifier calculate $G_0 = 2^0 \cdot G, ...,G_{254} = 2^{254} \cdot G$. The prover provides $s$, the presumed 255-bit decomposition of a scalar for the embedded elliptic curve, and the divisor interpolating $s \cdot G$ with the relevant powers of $G$ within Pedersen vector commitments.
+For a generator $G$, both the prover and the verifier calculate $G_0 = 2^0 \cdot G, ..., G_{255} = 2^{255} \cdot G$. The prover provides $s$, the presumed 256-bit decomposition of a scalar for the embedded elliptic curve, and the divisor interpolating $s \cdot G$ with the relevant powers of $G$ within Pedersen vector commitments.
 
 We then perform a challenged evaluation of the divisor, and for the right-hand side compared to (the sum of each interpolated point also so challenged), we only include terms selected by the bits.
 
@@ -561,15 +561,15 @@ While evaluating divisors (a polynomial), we consider the evaluation not as $a *
 
 \newcommand{\dlogpok}{\mathsf{DiscreteLogProofOfKnowledge}}
 
-$\dlogpok_G(s_{0..255}, x, y) \rightarrow$
+$\dlogpok_G(s_{0..256}, x, y) \rightarrow$
 
 $~~\dlog_G(s, x, y)$
 
 For now, $\dlogpok = \dlog$ (inheriting its preconditions and argument formatting). In the future, another option may be more efficient.
 
-$\dlog$ takes the logarithmic derivative of $D(C_0) * D(C_1) * D(C_2) = \prod_{i=0}^{254}(\mu - Z(G_i))$, where $D$ is the divisor, to enable evaluation with a linear combination (instead of hundreds of in-circuit multiplications).
+$\dlog$ takes the logarithmic derivative of $D(C_0) * D(C_1) * D(C_2) = \prod_{i=0}^{255}(\mu - Z(G_i))$, where $D$ is the divisor, to enable evaluation with a linear combination (instead of hundreds of in-circuit multiplications).
 
-Eagen's work has an $x$-only divisor equation of $D(C) * D(-C) = \prod_{i=0}^{254}(C.x - G_i.x)$. If we instead take the logarithmic derivative of that, the proof loses the ability to differentiate $G_i.x$ from $(-G_i).x$. We can use this to generate a trinary system $-1, 0, 1$ with $161$ powers of $G$ ($G, 3 \cdot G, 9 \cdot G$) which generates nearly the same $2^{255}$ group, yet with only $161$ trits (which can be collapsed to bits due to the lack of ability to distinguish $-1$ from $1$). Not only does mean less work calculating the divisor, the evaluation of the challenge is also simpler.
+Eagen's work has an $x$-only divisor equation of $D(C) * D(-C) = \prod_{i=0}^{255}(C.x - G_i.x)$. If we instead take the logarithmic derivative of that, the proof loses the ability to differentiate $G_i.x$ from $(-G_i).x$. We can use this to generate a trinary system $-1, 0, 1$ with $162$ powers of $G$ ($G, 3 \cdot G, 9 \cdot G$) which generates nearly the same $2^{256}$ group, yet with only $162$ trits (which can be collapsed to bits due to the lack of ability to distinguish $-1$ from $1$). Not only does mean less work calculating the divisor, the evaluation of the challenge is also simpler.
 
 \newpage
 
