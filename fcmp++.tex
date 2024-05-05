@@ -202,19 +202,15 @@ A Pedersen hash is a collision-resistant hash where for each word hashed, an add
 
 Creating Pedersen hashes in-circuit would be too expensive. Bulletproofs offer arithmetic over the scalar field of the curve, yet Pedersen hashes produce an output over the field the curve is defined over. Accordingly, it'd require non-native arithmetic. If we instead use an elliptic curve whose scalar field is the field of the curve we're performing the hash with (an 'embedded' or 'towered' curve), we'd have a cost of 256 in-circuit multiplications per word hashed (for a 256-bit elliptic curve).
 
-We instead use Generalized Bulletproofs, a proposed modification to Bulletproofs currently undergoing work to obtain security proofs. Generalized Bulletproofs can be used to output Pedersen hashes at effectively no additional cost, although it cannot operate over its hashes (and we do need to operate over a series of hashes, due to discussing a Merkle tree). We solve this by operating over output hashes with a new Generalized Bulletproof, this one on a curve whose scalar field is the prior curve's field. This continues for each layer of the Merkle tree, and is most efficiently realizable with a curve cycle (a curve whose scalar field is the field of a curve whose scalar field is the field for the original curve). With a curve cycle, one can alternate between the two curves (and two proofs) without needing additional curves/proofs per layer.
+We instead use Generalized Bulletproofs, a modification to Bulletproofs recently proven secure.
+
+https://github.com/cypherstack/generalized-bulletproofs
+
+Generalized Bulletproofs can be used to output Pedersen hashes at effectively no additional cost, although it cannot operate over its hashes (and we do need to operate over a series of hashes, due to discussing a Merkle tree). We solve this by operating over output hashes with a new Generalized Bulletproof, this one on a curve whose scalar field is the prior curve's field. This continues for each layer of the Merkle tree, and is most efficiently realizable with a curve cycle (a curve whose scalar field is the field of a curve whose scalar field is the field for the original curve). With a curve cycle, one can alternate between the two curves (and two proofs) without needing additional curves/proofs per layer.
 
 The ability to produce Pedersen hashes also enables forming challenges off partial transcripts of the witness. By defining a Pedersen hash of the first $n$ variables within the circuit, we can hash that outside of the circuit with a traditional hash function to obtain a challenge usable for the rest of the circuit. This allows interactive proofs within the circuit (due to the Fiat-Shamir transform), and with it, more efficient gadgets.
 
 For the concept of Generalized Bulletproofs, and opening a Merkle tree using Pedersen hashes with a pair of Bulletproofs over a curve cycle in such an efficient manner, please thank the authors of Curve Trees, https://eprint.iacr.org/2022/756. This proposal applies their work to RingCT and performs further optimizations via the usage of divisors, yet does not claim to be novel.
-
-\subsubsection{Alternatives}
-
-Bulletproofs and Bulletproofs+ both define commitments to the witness ($A_I, A$ respectively). These commitments are Pedersen hashes of the entire witness. If these commitments are moved into the statement, we can independently use Bulletproofs+ zk-WIP argument (or ideally a tailored version of it, as we don't need the inner-product functionality) to prove subsets of the commitment are validly formed. By defining the subsets as the variables we want hashed for the Merkle tree, we achieve Pedersen hashing with non-negligible overhead (roughly 3x in verification time, with bandwidth scaling near-linear to the amount of hashes performed).
-
-Distinctly, we could discuss modifying the Bulletproof(+) statement to explicitly support such subsets, presumably via an additional challenge. This would have minimal overhead (an amount comparable to Generalized Bulletproofs if accomplished), be less expressive than Generalized Bulletproofs, yet largely as performant in both bandwidth and verification time.
-
-Neither of these ideas are put forth as guaranteed fallbacks at this time. Solely likely sufficiently performant alternatives if there is an issue with proving Generalized Bulletproofs secure which we can discuss researching.
 
 \subsection{Towering Curve Cycle}
 
