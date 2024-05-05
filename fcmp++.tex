@@ -23,13 +23,13 @@ Monero is currently planning to deploy the Seraphis upgrade, most notable for it
 
 With Seraphis, outputs are defined as $k_0 \cdot G_0 + k_1 \cdot G_1 + k_2 \cdot G_2$ with the linking tag defined as $(k_2 / k_1) \cdot J$. This allows $k_0$ to be re-randomized without malleating the linking tag.
 
-With a new definition of linking tags, it forces creation of a new anonymity set (with explicit migration) to prevent double-spending of already spent outputs (which would now be given a new linking tag if 'imported' by simply adding a $1 G_2$ term).
+With a new, incompatible definition of linking tags, it forces creation of a new anonymity set (with explicit migration) to prevent double-spending of already spent outputs (which would now be given a new linking tag if 'imported' by simply adding a $1 G_2$ term).
 
 With RingCT, outputs are defined as $O = x \cdot G$ with the linking tag defined as $x \cdot \hashtopoint(O)$. To re-randomize $x$ would be to malleate the linking tag.
 
 \section{New Output Key Definition}
 
-Since we cannot re-define the linking tags, we re-define the output key. We introduce a new generator, $T$, re-define output keys as $O = x \cdot G + y \cdot T$ (where $y = 0$ for all existing outputs), and preserve the linking tag definition of $x \cdot \hashtopoint(O)$. This causes all existing outputs to maintain their linking tags while giving us a term to re-randomize.
+Since we cannot re-define the linking tags in an amenable fashion, we re-define the output key. We introduce a new generator, $T$, re-define output keys as $O = x \cdot G + y \cdot T$ (where $y = 0$ for all existing outputs), and preserve the linking tag definition of $x \cdot \hashtopoint(O)$. This causes all existing outputs to maintain their linking tags while giving us a term to re-randomize.
 
 \newpage
 
@@ -419,30 +419,6 @@ $~~\equality(\delta, \delta_3)$
 
 $~~1 ~x_0 + 1 ~x_1 + 1 ~x_2 + -1 ~\aol = 0$
 
-\subsubsection{Permissible for Hashing}
-
-\newcommand{\permissible}{\mathsf{Permissible_{a, b}}}
-
-$\permissible(y) \rightarrow$
-
-$~~p = (a * y) + b$
-
-$~~l = \al(sqrt(p))$
-
-$~~r = \ar(sqrt(p))$
-
-$~~1 ~l + -1 ~r = 0$
-
-$~~1 ~\aol + -a ~y + -1 ~b = 0$
-
-In order to not have have to hash points as their $x$ and $y$ coordinates (which would require a tuple set membership invocation and increase the cost of calculating the Pedersen hash), we define an arithmetic hash ($(a * y) + b$) and use it such that for any $x$ coordinate, only one $y$ coordinate will be accepted. This lets us drop the $y$ coordinate without concern of the prover providing the negative $y$ coordinate (negating the discrete logarithms, enabling double spends).
-
-In-circuit, we consider a $y$ coordinate permissible if it has a square root. This can be checked in-circuit with just one multiplication, making it incredibly efficient. Out-of-circuit, we consider a $y$ coordinate permissible if $\mathsf{permissible}(y)$ and $!\mathsf{permissible}(-y)$.
-
-This cannot be used with linking tag generators, yet can be used for all other points we hash.
-
-Full credit to this idea goes to the authors of Curve Trees, https://eprint.iacr.org/2022/756.
-
 \newpage
 
 \subsection{Interactive Gadgets}
@@ -557,20 +533,6 @@ We then perform a challenged evaluation of the divisor, and for the right-hand s
 
 While evaluating divisors (a polynomial), we consider the evaluation not as $a * x^2 + b * x + c$, yet $x^2 * a + x * b + c$. The latter lines up with the constraint system's definition (since our $x$ is public).
 
-\subsubsection{Discrete Log Proof of Knowledge}
-
-\newcommand{\dlogpok}{\mathsf{DiscreteLogProofOfKnowledge}}
-
-$\dlogpok_G(s_{0..256}, x, y) \rightarrow$
-
-$~~\dlog_G(s, x, y)$
-
-For now, $\dlogpok = \dlog$ (inheriting its preconditions and argument formatting). In the future, another option may be more efficient.
-
-$\dlog$ takes the logarithmic derivative of $D(C_0) * D(C_1) * D(C_2) = \prod_{i=0}^{255}(\mu - Z(G_i))$, where $D$ is the divisor, to enable evaluation with a linear combination (instead of hundreds of in-circuit multiplications).
-
-Eagen's work has an $x$-only divisor equation of $D(C) * D(-C) = \prod_{i=0}^{255}(C.x - G_i.x)$. If we instead take the logarithmic derivative of that, the proof loses the ability to differentiate $G_i.x$ from $(-G_i).x$. We can use this to generate a trinary system $-1, 0, 1$ with $162$ powers of $G$ ($G, 3 \cdot G, 9 \cdot G$) which generates nearly the same $2^{256}$ group, yet with only $162$ trits (which can be collapsed to bits due to the lack of ability to distinguish $-1$ from $1$). Not only does mean less work calculating the divisor, the evaluation of the challenge is also simpler.
-
 \newpage
 
 \subsection{Circuit}
@@ -585,7 +547,7 @@ $~~o_x, o_y, r_{o_{0..255}}, r_{o_x}, r_{o_y}\circuitin$
 
 $~~\oncurve(o_x, o_y)$
 
-$~~\dlogpok_T(r_o, r_{o_x}, r_{o_y})$
+$~~\dlog_T(r_o, r_{o_x}, r_{o_y})$
 
 $~~\incompleteadd(o_x, o_y, r_{o_x}, r_{o_y}, \tilde{O}\mathsf{.x}, \tilde{O}\mathsf{.y})$
 
@@ -605,7 +567,7 @@ $ $
 
 $~~r_{j_{0..255}}, r_{j_x}, r_{j_y}\circuitin$
 
-$~~\dlogpok_T(r_j, r_{j_x}, r_{j_y})$
+$~~\dlog_T(r_j, r_{j_x}, r_{j_y})$
 
 $~~\incompleteadd(r_{i_{v_x}}, r_{i_{v_y}}, r_{j_x}, r_{j_y}, R\mathsf{.x}, R\mathsf{.y})$
 
@@ -615,19 +577,15 @@ $~~c_x, c_y, r_{c_{0..255}}, r_{c_x}, r_{c_y}\circuitin$
 
 $~~\oncurve(c_x, c_y)$
 
-$~~\dlogpok_G(r_c, r_{c_x}, r_{c_y})$
+$~~\dlog_G(r_c, r_{c_x}, r_{c_y})$
 
 $~~\incompleteadd(c_x, c_y, r_{c_x}, r_{c_y}, \tilde{C}\mathsf{.x}, \tilde{C}\mathsf{.y})$
 
 $ $
 
-$~~\permissible(o_y)$
-
-$~~\permissible(c_y)$
-
 $~~L\circuitin$
 
-$~~\tuplememberlist(L, (o_x, i_x, i_y, c_x))$
+$~~\tuplememberlist(L, (o_x, i_x, c_x))$
 
 \subsubsection{Additional Layer}
 
@@ -635,13 +593,11 @@ $\mathsf{AdditionalLayer}(\tilde{H}) \rightarrow$
 
 $~~h_x, h_y, r_{0..255}, r_x, r_y\circuitin$
 
-$~~\dlogpok_H(r, r_x, r_y)$
+$~~\dlog_H(r, r_x, r_y)$
 
 $~~\incompleteadd(h_x, h_y, r_x, r_y, \tilde{H}\mathsf{.x}, \tilde{H}\mathsf{.y})$
 
 $ $
-
-$~~\permissible(h_y)$
 
 $~~L\circuitin$
 
@@ -732,9 +688,9 @@ $$
 \mathsf{outputs_1} = \mathsf{outputs[(tree.length() \mod w_a) ~..]}
 $$
 
-Add $\mathcal{H}_{tree_c}(([0, 0, 0, 0] * (tree.length() \mod w_a)) + \mathsf{outputs_0.flatten()})$ to the most recently appended branch hash for the leaves. The flatten operation transforms $$[(A, B, C), (D, E, F)]$$ to $$[
-A.x, B.x, B.y, C.x,
-D.x, E.x, E.y, F.x
+Add $\mathcal{H}_{tree_c}(([0, 0, 0] * (tree.length() \mod w_a)) + \mathsf{outputs_0.flatten()})$ to the most recently appended branch hash for the leaves. The flatten operation transforms $$[(A, B, C), (D, E, F)]$$ to $$[
+A.x, B.x, C.x,
+D.x, E.x, F.x
 ]$$
 (a series of tuples of points to a series of field elements).
 
@@ -752,12 +708,6 @@ For each branch hash modified from $H$ to $H'$, calculate $H'.x - H.x$, the delt
   \item For every hash whose children were modified, perform the above remove/delta-hash procedure until the new tree's root is updated.
 \end{enumerate}
 
-\subsection{Permissibility}
-
-For an input tuple $(O, I, C)$, $O, C$ must be permissible (as defined by the permissible gadget) before they can be hashed into the tree. $O$ has $T$ added until it's permissible, where for $O = x \cdot G + y \cdot T$, $y$ is incremented as many times as $T$ was added. $C$ has $G$ added until it's permissible, where for $C = r \cdot G + a \cdot H$, $r$ (the commitment mask) is incremented as many times as $G$ was added.
-
-The hash functions, outputting points, are programmed to only output permissible points.
-
 \subsubsection{Initialization}
 
 When an instance of monerod boots with the tree code, it will immediately start indexing every block since genesis. Cryptonote outputs will be accumulated as the key, the linking tag generator, and a Pedersen commitment for the amount (with a randomness of zero). RingCT outputs will be accumulated as the key, the linking tag generator, and their Pedersen commitment.
@@ -774,6 +724,18 @@ If an output has a block-based timelock, it is set to be accumulated with the ou
 
 Preserving time-based timelocks would require defining a linked list where upon block addition, we check if we should add the output at the head of the list (and any further outputs) to the tree. Unfortunately, such an implementation would be quite easy to perform denial-of-service attacks against. We could also define a vector, enabling efficient insertion, yet then we must define and maintain an unbounded global list which at best can be bucketed (though we'd need to remove from the head of the list, shifting the bucket(s)). With block-based timelocks, we still have the unbounded list commentary, yet have efficient topics (the block number) and no partial list additions. Accordingly, one is not worth the headache, and one has a tolerable headache.
 
+\subsection{New Linking Tag Definition}
+
+We only hash the $x$ coordinates of $O, I, C$ into the tree. Accordingly, a prover may prove for $O$ or $-O$, as they share an $x$ coordinate. This enables proving for linking tags $L, -L$, which also share an $x$ coordinate. Accordingly, we re-define linking tags from points to just their $x$ coordinates (becoming indifferent to this malleability).
+
+While one of $O$ or $I$ can be negated to produce a negated linking tag, negating $C$ allows proving for a negative amount commitment. Since the negative value will be added to the inputs, this does not allow increasing the Monero spendable (as a negative value added to the outputs would) and is accordingly fine.
+
+Allowing negative branch hashes would allow trivially findable branch collisions if the hash function is a Pedersen vector commitment (which it is). The prover simply proves for the Pedersen vector commitment with negated values. To solve this, we add a constant term with a coefficient of $1$. If a prover attempts to prove for the negated values, they won't be able to negate the constant term and will have a distinct $x$ coordinate resulting. The ability to find a collision now implies a solution to the discrete log problem. Credit for the idea for this constant term's inclusion goes to tevador.
+
+This can be implemented without notable performance impact, outside of the circuit. For an output blinded hash, the constant term is added before the blinded hash is passed to the next layer. This assumes the Bulletproof uses completely distinct generators.
+
+Existing daemons may either perform a migration of all prior linking tags or upon checking if a linking tag is used, additionally check if its additive inverse was spent. Careful handling must be done for this to be safe, as checking if a linking tag is used happens on multiple levels (in the database, in the same potentially applicable block, in the same transaction...). All new linking tags are encoded as points with an even $y$ coordinate (without the sign bit set, equivalent to the encoding of the $x$ coordinate alone).
+
 \subsection{Input Modifications}
 
 To minimize modifications to inputs, FCMP++ inputs simply set the amount of key offsets 0.
@@ -781,8 +743,6 @@ To minimize modifications to inputs, FCMP++ inputs simply set the amount of key 
 \subsection{Output Modifications}
 
 New outputs' keys are transmitted multiplied by the inverse of eight. When a wallet is scanning an output, it first multiplies the key by eight. Before addition to the tree, the key is multiplied by eight. This ensures a lack of torsion.
-
-We could also require output keys be permissible, yet doing so would interfere with the current scanning protocol
 
 Output commitments are already passed to the Bulletproof+ verifier multiplied by the inverse of eight. We either have commitments broadcast as such in the first place, or also pass this representation to the tree.
 
