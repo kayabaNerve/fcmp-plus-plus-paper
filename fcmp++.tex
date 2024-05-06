@@ -230,7 +230,7 @@ We define an arithmetic circuit with two parts to its statement.
 	
 	For vectors $a_l, a_r, a_o$, $a_o$ is the Hadamard product of $a_l, a_r$.
 	\item
-	$W_l * a_l + W_r * a_r + W_o * a_o + W_v * V = c$
+	$W_l * a_l + W_r * a_r + W_o * a_o + W_v * V + c = 0$
 	
 	$W_l, W_r, W_o, W_v, c$ have an equal amount of columns. An instance of this formula, referred to as a constraint, exists per column. Within an instance, we refer to $W_l, W_r, W_o, W_v, c$ as the column relevant (and not the overall structure).
 	
@@ -241,6 +241,8 @@ We define an arithmetic circuit with two parts to its statement.
 	$W_v * V$ is $\sum^{V\mathsf{.len}()}_{i=0} \sum^{a_l\mathsf{.len}()}_{j=0} W_{v_{i, j}} * V_{i, j}$
 
 	Please note $W_v, V$ is defined by Bulletproofs(+) to be the Pedersen commitments accessible within the circuit and associated weights. We define $V$ as the Pedersen vector commitments, with the necessary sub-indexing added. While Generalized Bulletproofs still supports Pedersen commitments, we drop the functionality from consideration and don't bother notating it due to lack of use.
+	
+	Please also note Bulletproofs(+) place the constants $c$ on the right-hand side, not the left. This means converting from our linear combinations to one for Bulletproofs(+) require negating the constants $c$.
 \end{itemize}
 
 A gadget is a series of $a_l, a_r$ (and respective $a_o$) rows and columns in $W_l, W_r, W_o, W_v, c$. They are intended to be reusable snippets we can independently formally verify as correct/create security proofs for.
@@ -250,7 +252,7 @@ A gadget is a series of $a_l, a_r$ (and respective $a_o$) rows and columns in $W
 \newcommand{\ar}{a_r\p}
 \newcommand{\aol}{\mathsf{a_o.last()}}
 
-We define $\al, \ar, V_i\o$ as functions pushing a value onto the respective vector, returning a constrainable reference. Once $\al, \ar$ have been called, the push to $a_o$ is implicit with a constrainable reference retrievable with $\aol$.
+We define $\al, \ar, V_i\o$ as functions pushing a linear combination or value onto the respective vector, returning a constrainable reference. Once $\al, \ar$ have been called, the push to $a_o$ is implicit with a constrainable reference retrievable with $\aol$.
 
 \newcommand{\all}{\mathsf{a_l.last()}}
 \newcommand{\arl}{\mathsf{a_r.last()}}
@@ -273,13 +275,11 @@ By adding $b$ to both sides, we get $a = b$.
 
 $\inverse(a): z \rightarrow$
 
-$~~a_2 = \al(a)$
+$~\equality(\al(a), ~a)$
 
 $~~z = \ar(a^{-1})$
 
-$~~\equality(a, a_2)$
-
-$~~1 \aol = 1$
+$~~1 \aol + -1 = 0$
 
 $~~\mathsf{return} ~z$
 
@@ -293,17 +293,15 @@ This also serves to prove $a \ne 0$ since if it was $0$, it would produce a prod
 
 $inequality(a, b) \rightarrow$
 
-$~~c = a - b$
+$~~c = 1 ~a + -1 ~b$
 
-$~~\al(c)$
+$~~\equality(\al(c), ~c)$
 
 $~~\ar(c^{-1})$
 
-$~~1 ~a + -1 ~b + -1 ~c = 0$
+$~~1 ~\aol + -1 = 0$
 
-$~~1 ~\aol = 1$
-
-We constrain $c$ to be $a - b$. Then we constrain $c$ to having a multiplicative inverse. If $a == b$, $c$ will be $0$, and $\aol$ must be $0$ (since any number multiplied by $0$ is $0$).
+We constrain $c$ to be $a - b$. Then we constrain $c$ to having a multiplicative inverse. If $a = b$, $c$ will be $0$, and $\aol$ must be $0$ (since any number multiplied by $0$ is $0$).
 
 \subsubsection{Member of List}
 
@@ -311,27 +309,19 @@ We constrain $c$ to be $a - b$. Then we constrain $c$ to having a multiplicative
 
 $\memberlist(L, m) \rightarrow$
 
-$~~l = \al(L_0 - m)$
-
-$~~1 ~L_0 + -1 ~m + -1 ~l = 0$
+$~~c = 1 L_0 + -1 m$
 
 $~~\forall ~1 <= i < L\mathsf{.length}() - 1:$
 
-$~~~~r = \ar(L_i - m)$
+$~~~~\equality(\al(c), ~c)$
 
-$~~~~1 ~L_i + -1 ~m + -1 ~r = 0$
+$~~~~n = 1 L_i + -1 m$
 
-$~~~~o = \aol$
+$~~~~\equality(\ar(n), ~n)$
 
-$~~~~l = \al(o))$
+$~~~~c = 1 \aol$
 
-$~~~~1 ~o + -1 ~l = 0$
-
-$~~r = \ar(L\mathsf{.last}() - m)$
-
-$~~1 ~L\mathsf{.last}() + -1 ~m + -1 ~r = 0$
-
-$~~1 ~\aol = 0$
+$~~c = 0$
 
 This defines a carried multiplication of $L_i - m$, which will be $0$ if and only if $L_i = m$. The multiplication of two values will be $0$ if and only if one factor is $0$ (since we're operating over a prime field). Accordingly, the carried multiplication will be $0$ only if at least one $L_i = m$.
 
@@ -341,37 +331,25 @@ This defines a carried multiplication of $L_i - m$, which will be $0$ if and onl
 
 $\oncurve(x, y) \rightarrow$
 
-$~~y_2 = \al(y)$
+$~~\equality(\al(x), x)$
 
-$~~y_3 = \ar(y)$
-
-$~~y^2 = \aol$
-
-$~~\equality(y, y_2)$
-
-$~~\equality(y, y_3)$
-
-$~~x_2 = \al(x)$
-
-$~~x_3 = \ar(x)$
+$~~\equality(\ar(x), x)$
 
 $~~x^2 = \aol$
 
-$~~\equality(x, x_2)$
+$~~\equality(\al(x^2), x^2)$
 
-$~~\equality(x, x_3)$
-
-$~~x^2_2 = \al(x^2)$
-
-$~~x_4 = \ar(x)$
+$~~\equality(\ar(x), x)$
 
 $~~x^3 = \aol$
 
-$~~\equality(x^2, x^2_2)$
+$~~\equality(\al(y), y)$
 
-$~~\equality(x, x_4)$
+$~~\equality(\ar(y), y)$
 
-$~~-1 ~y^2 + 1 ~x^3 + a ~x + 1 ~b$
+$~~y^2 = \aol$
+
+$~~-1 ~y^2 + -1 ~x^3 + -a ~x + -1 ~b = 0$
 
 This evaluates the curve formula of the embedded curve (written in the form $y^2 = x^3 + a ~x + b$).
 
@@ -473,31 +451,23 @@ $~~p_{1_n} = 2 * \chl\mathsf{.y}$
 
 $~~p_{1_d} = (-\delta \cdot p_{1_n}) + 3 * \chl\mathsf{.x}^2 + a$
 
-$~~\equality(\al(p_{0_n}), p_{0_n})$
+$~~p_n = p_{0_n} * p_{1_n}$
 
-$~~\equality(\ar(p_{1_n}), p_{1_n})$
+$~~p_d = p_{0_d} * p_{1_d}$
 
-$~~p_n = \aol$
+$~~\equality(\al(p_d), p_d)$
 
-$~~\equality(\al(p_{0_d}), p_{0_d})$
+$~~o = \ar(p_n * p_d^{-1})$
 
-$~~\equality(\ar(p_{1_d}), p_{1_d})$
+$~~\equality(\aol, p_n)$
 
-$~~p_d = \aol$
-
-$~~p_d = \inverse(p_d)$
-
-$~~\equality(\al(p_n), p_n)$
-
-$~~\equality(\ar(p_d), p_d)$
-
-$~~\mathsf{return} ~\aol$
+$~~\mathsf{return} ~o$
 
 $d_y, d_{yx}, d_x, d_0$ are the coefficients for the divisor (zero-indexed, such that $d_{x_0}$ is the coefficient for $x^1$). The divisor is enforced to be non-zero by using $1$ for the coefficient for $x^1$.
 
 $a, b$ are the $a, b$ from the curve equation $y^2 = x^3 + a * x + b$.
 
-Please note we define linear combinations $p_{0_n}, p_{0_d}, p_0, p_{1_n}, p_{1_d}, p_1$, push them as if they were values (which they can be to the prover), and then constrain off them as linear combinations.
+Please note $p_{1_n}, p_{1_d}$ are scalars, not linear combinations, yet we do extensively use linear combinations here.
 
 \newcommand{\circuitin}{\leftarrow \mathsf{Prover ~(Vector ~Commitment)}}
 
@@ -517,11 +487,11 @@ $~~\chl_2 = -(\chl_0 + \chl_1)$
 
 $~~\delta = (\chl_1\mathsf{.y} - \chl_0\mathsf{.y}) * (\chl_1\mathsf{.x} - \chl_0\mathsf{.x})^{-1}$
 
-$~~\mu = \chl_1\mathsf{.y} - (\delta * \chl_1\mathsf{.x})$
+$~~\mu = \chl_0\mathsf{.y} - (\delta * \chl_0\mathsf{.x})$
 
-$~~f = \inverse(\mu ~-~ (y ~-~ (\delta ~*~ x)))$
+$~~f = \inverse(\mu - (-y + (\delta * ~x)))$
 
-$~~\sum^2_{i=0} \dloglhs(d_y, d_{yx}, d_x, d_0, \delta, \chl_i) ~-~ \sum^{255}_{i=0} (\mu ~-~ (G_i\mathsf{.y} ~-~ (\delta ~*~ G_i\mathsf{.x})))^{-1} ~*~ s_i - ~f= 0$
+$~~\equality(\sum^2_{i=0} \dloglhs(d_y, d_{yx}, d_x, d_0, \delta, \chl_i), \sum^{255}_{i=0} (\mu ~-~ (G_i\mathsf{.y} ~+~ (\delta ~*~ G_i\mathsf{.x})))^{-1} ~*~ s_i ~+~ 1 ~f)$
 
 For a generator $G$, both the prover and the verifier calculate $G_0 = 2^0 \cdot G, ..., G_{255} = 2^{255} \cdot G$. The prover provides $s$, the presumed 256-bit decomposition of a scalar for the embedded elliptic curve, and the divisor interpolating $s \cdot G$ with the relevant powers of $G$ within Pedersen vector commitments.
 
@@ -555,13 +525,13 @@ $~~\oncurve(i_x, i_y)$
 
 $~~\dlog_U(r_i, r_{i_{u_x}}, r_{i_{u_y}})$
 
-$~~\dlog_V(r_i, r_{i_{v_x}}, r_{i_{v_y}})$
-
 $~~\incompleteadd(i_x, i_y, r_{i_{u_x}}, r_{i_{u_y}}, \tilde{I}\mathsf{.x}, \tilde{I}\mathsf{.y})$
 
 $ $
 
 $~~r_{j_{0..255}}, r_{j_x}, r_{j_y}\circuitin$
+
+$~~\dlog_V(r_i, r_{i_{v_x}}, r_{i_{v_y}})$
 
 $~~\dlog_T(r_j, r_{j_x}, r_{j_y})$
 
@@ -590,6 +560,8 @@ $\mathsf{AdditionalLayer}(\tilde{H}) \rightarrow$
 $~~h_x, h_y, r_{0..255}, r_x, r_y\circuitin$
 
 $~~\dlog_H(r, r_x, r_y)$
+
+$~~\oncurve(h_x, h_y)$
 
 $~~\incompleteadd(h_x, h_y, r_x, r_y, \tilde{H}\mathsf{.x}, \tilde{H}\mathsf{.y})$
 
