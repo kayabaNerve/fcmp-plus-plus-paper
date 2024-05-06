@@ -399,7 +399,7 @@ $~~1 ~x_0 + 1 ~x_1 + 1 ~x_2 + -1 ~\aol = 0$
 
 \newcommand{\chl}{\mathsf{chl}}
 
-The rest of the gadgets we define are interactive. This bounds all of their arguments to being within Pedersen vector commitments, and has them called with an additional, per-gadget series of challenges $\chl$. $\chl$ is derived from hashing all of the Pedersen vector commitments with per-gadget further derivation.
+The rest of the gadgets we define are interactive. This bounds all of their arguments to being within Pedersen vector commitments, and has them called with an additional, per-gadget series of challenges $\chl$. $\chl$ is derived from hashing all of the Pedersen vector commitments. Each gadget is presumed to be given an independent series of challenges, subscripted $\mathsf{chl_i}$ as needed.
 
 \subsubsection{Tuple Member of List}
 
@@ -428,10 +428,20 @@ For this to have an attack in polylogarithmic time, it'd presumably need to be c
 We use elliptic curve divisors, as posited by Liam Eagen (https://eprint.iacr.org/2022/596), to prove for the statement:
 
 $$
-\{ q, x, y; s_{0..256} | (x, y) = ((\sum^{255}_{i=0} 2^i * s_i) \mod q) \cdot G \}
+\{ q, x, y; s_{0..256} ~|~ (x, y) = ((\sum^{255}_{i=0} 2^i * s_i) \mod q) \cdot G \}
 $$
 
-The scalar represented by $s$, $s'$, is equal to $\sum^{255}_{i=0} 2^i * s_i \mod q$, where $q$ is the order of the elliptic curve. Since we do not constrain $s$ to being a valid bitstring, each $s'$ has effectively infinite representations which can be used for $s$. We solely require $s'$ not be malleable (for a given $s$, the prover should not be able to prove for multiple $s'$).
+We do this by proving for the functionally equivalent statement:
+
+$$
+\{ q, x, y; s_{0..256} ~|~ (x, y) = \sum^{255}_{i=0} s_i \cdot (2^i \cdot G) \}
+$$
+
+where $G$ is of prime order $q$.
+
+The scalar represented by $s$, $s'$, is equal to $\sum^{255}_{i=0} 2^i * s_i \mod q$. Since we do not constrain $s$ to being a valid bitstring, each $s'$ has effectively infinite representations which can be used for $s$. We solely require $s'$ not be malleable (for a given $s$, the prover should not be able to prove for multiple $s'$).
+
+\
 
 \newcommand{\dloglhs}{\mathsf{DivisorChallenge_{a,b}}}
 
@@ -463,11 +473,17 @@ $~~\equality(\aol, p_n)$
 
 $~~\mathsf{return} ~o$
 
-$d_y, d_{yx}, d_x, d_0$ are the coefficients for the divisor (zero-indexed, such that $d_{x_0}$ is the coefficient for $x^1$). The divisor is enforced to be non-zero by using $1$ for the coefficient for $x^1$.
+\
+
+$d_y, d_{yx}, d_x, d_0$ are the coefficients for the divisor (zero-indexed, such that $d_{x_0}$ is the coefficient for $x^1$). The divisor is enforced to be non-zero by using $1$ for the coefficient for $x^1$. This is why the coefficients $d_x$ start from $1$ (omitting $d_{x_0}$).
+
+While evaluating divisors (a polynomial), we consider the evaluation not as $a * x^2 + b * x + c$ (a generic polynomial used for this example), yet $x^2 * a + x * b + c$. The latter lines up with the constraint system's definition (since our $x$ is public yet our coefficients are not).
 
 $a, b$ are the $a, b$ from the curve equation $y^2 = x^3 + a * x + b$.
 
-Please note $p_{1_n}, p_{1_d}$ are scalars, not linear combinations, yet we do extensively use linear combinations here.
+Please note $p_{1_n}, p_{1_d}$ are scalars, not linear combinations, despite our extensive usage of linear combinations here.
+
+\pagebreak
 
 \newcommand{\circuitin}{\leftarrow \mathsf{Prover ~(Vector ~Commitment)}}
 
@@ -493,11 +509,11 @@ $~~f = \inverse(\mu - (-y + (\delta * ~x)))$
 
 $~~\equality(\sum^2_{i=0} \dloglhs(d_y, d_{yx}, d_x, d_0, \delta, \chl_i), \sum^{255}_{i=0} (\mu ~-~ (G_i\mathsf{.y} ~+~ (\delta ~*~ G_i\mathsf{.x})))^{-1} ~*~ s_i ~+~ 1 ~f)$
 
-For a generator $G$, both the prover and the verifier calculate $G_0 = 2^0 \cdot G, ..., G_{255} = 2^{255} \cdot G$. The prover provides $s$, the presumed 256-bit decomposition of a scalar for the embedded elliptic curve, and the divisor interpolating $s \cdot G$ with the relevant powers of $G$ within Pedersen vector commitments.
+\
 
-We then perform a challenged evaluation of the divisor, and for the right-hand side compared to (the sum of each interpolated point also so challenged), we only include terms selected by the bits.
+For a public generator $G$, both the prover and the verifier calculate $G_0 = 2^0 \cdot G, ..., G_{255} = 2^{255} \cdot G$. The prover provides $s$, the presumed (yet not enforced) 256-bit decomposition of a scalar for the embedded elliptic curve, and the divisor interpolating $-(s \cdot G)$ with the relevant powers of $G$ within Pedersen vector commitments.
 
-While evaluating divisors (a polynomial), we consider the evaluation not as $a * x^2 + b * x + c$, yet $x^2 * a + x * b + c$. The latter lines up with the constraint system's definition (since our $x$ is public).
+We then perform a challenged evaluation of the divisor for the left-hand side of both the original equation and our equality statement. For the right-hand side, the powers of two of the generator are also so challenged, yet only included as selected by the vector $s$. The vector $s$ may trigger multiple inclusions of one of the generators within our table. Since the individual term is written $1 / (\mu - (\mathsf{G.y} + (\delta * \mathsf{G.x})))$, a $s_i$ of two causes $2 / (\mu - (\mathsf{G.y} + (\delta * \mathsf{G.x})))$ which is equivalent to $1 / (\mu - (\mathsf{G.y} + (\delta * \mathsf{G.x}))) + 1 / (\mu - (\mathsf{G.y} + (\delta * \mathsf{G.x})))$. Since this is evaluated within a sum statement, this is equivalent to that specific $G$ being interpolated multiple times, which is safe according to Eagen's preprint. Since reuse of $s$ will cause a distinct generator's power of two with the same position to be interpolated the same amount of times, this does yield a consistent $s'$ (with the assumption all generators share an order).
 
 \newpage
 
