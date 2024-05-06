@@ -257,8 +257,6 @@ We define $\al, \ar, V_i\o$ as functions pushing a linear combination or value o
 \newcommand{\all}{\mathsf{a_l.last()}}
 \newcommand{\arl}{\mathsf{a_r.last()}}
 
-\newpage
-
 \subsubsection{Equality}
 
 \newcommand{\equality}{\mathsf{Equality}}
@@ -325,6 +323,8 @@ $~~c = 0$
 
 This defines a carried multiplication of $L_i - m$, which will be $0$ if and only if $L_i = m$. The multiplication of two values will be $0$ if and only if one factor is $0$ (since we're operating over a prime field). Accordingly, the carried multiplication will be $0$ only if at least one $L_i = m$.
 
+\newpage
+
 \subsubsection{On Curve}
 
 \newcommand{\oncurve}{\mathsf{OnCurve_{a,b,c}}}
@@ -349,11 +349,9 @@ $~~\equality(\ar(y), y)$
 
 $~~y^2 = \aol$
 
-$~~-1 ~y^2 + -1 ~x^3 + -a ~x + -1 ~b = 0$
+$~~\equality(1 ~y^2, 1 ~x^3 + a ~x + 1 ~b)$
 
-This evaluates the curve formula of the embedded curve (written in the form $y^2 = x^3 + a ~x + b$).
-
-\newpage
+This evaluates the curve formula of the embedded curve (written in the form $y^2 = x^3 + a * x + b$).
 
 \subsubsection{Incomplete Addition}
 
@@ -383,15 +381,11 @@ $~~1 ~x_2 + -1 ~x_0 + -1 ~r = 0$
 
 $~~-1 ~y_2 + -1 ~y_0 + -1 ~r = 0$
 
-$~~\delta_2 = \al(\delta)$
+$~~\equality(\al(\delta), \delta)$
 
-$~~\delta_3 = \ar(\delta)$
+$~~\equality(\ar(\delta), \delta)$
 
-$~~\equality(\delta, \delta_2)$
-
-$~~\equality(\delta, \delta_3)$
-
-$~~1 ~x_0 + 1 ~x_1 + 1 ~x_2 + -1 ~\aol = 0$
+$~~\equality(1 ~x_0 + 1 ~x_1 + 1 ~x_2, ~\aol)$
 
 \newpage
 
@@ -416,8 +410,6 @@ $~~~~~~L_i = \sum^{L_0\mathsf{.length}()}_{j=0} chl_j * L_{i,j}$
 $~~m = \sum^{m\mathsf{.length}()}_{j=0} chl_j * m_j$
 
 $~~\memberlist(L, m)$
-
-Please note the notation here is an evolution of prior syntax. Arguments are generally considered a constrainable reference ($a_{l_0}$), yet here it's a linear combination (such as $1 ~a_{l_0} + 2 ~a_{r_0})$, ignoring the bound on being present in a Pedersen vector commitment). Technically, there's no distinction (since $a_{l_0}$ expands to $1 ~a_{l_0}$), yet it's important to acknowledge.
 
 For this to have an attack in polylogarithmic time, it'd presumably need to be converted to the birthday problem. Since changing the tuple claimed to be a member (the left-hand side) changes the effective list (each member being a potential right-hand side), the two sides aren't independent and Wagner's algorithm isn't usable to find an efficient solution.
 
