@@ -1,6 +1,7 @@
 \documentclass[]{article}
 
 \usepackage{amsmath}
+\usepackage{amsfonts}
 
 \title{FCMP++}
 \author{Luke "Kayaba" Parker}
@@ -23,7 +24,7 @@ Monero is currently planning to deploy the Seraphis upgrade, most notable for it
 
 With Seraphis, outputs are defined as $k_0 \cdot G_0 + k_1 \cdot G_1 + k_2 \cdot G_2$ with the linking tag defined as $(k_2 / k_1) \cdot J$. This allows $k_0$ to be re-randomized without malleating the linking tag.
 
-With a new, incompatible definition of linking tags, it forces creation of a new anonymity set (with explicit migration) to prevent double-spending of already spent outputs (which would now be given a new linking tag if 'imported' by simply adding a $1 G_2$ term).
+With a new, incompatible definition of linking tags, it forces creation of a new anonymity set (with explicit migration) to prevent double-spending of already spent outputs (which would now be given a new linking tag if 'imported' by simply adding a $1 \cdot G_2$ term).
 
 With RingCT, outputs are defined as $O = x \cdot G$ with the linking tag defined as $x \cdot \hashtopoint(O)$. To re-randomize $x$ would be to malleate the linking tag.
 
@@ -58,7 +59,27 @@ Seraphis defines four distinct proofs.
 	The outputs do not overflow the order of the elliptic curve in order to cheat the balance proof.
 \end{enumerate}
 
-We appreciate and maintain these four definitions. We focus on the first two, currently jointly satisfied by CLSAG. We define one proof for the former and compose it with a new proof for the latter.
+We appreciate and maintain these four definitions. We focus on the first two, currently jointly satisfied by CLSAG. We claim the following relationship currently satisfied.
+
+$\{$
+
+$~~G, H \in \mathbb{G}, \tilde{C}, L \in \mathbb{G}, S \in (\mathbb{G}, \mathbb{G}, \mathbb{G})^n;$
+
+$~~O, I, C \in \mathbb{G}, x, c_g, c_h, r_c \in \mathbb{Z} ~|$
+
+$~~(O, I, C) \in S,~$
+
+$~~O = x \cdot G,~ L = x \cdot I,$
+
+$~~C = c_g \cdot G + c_h \cdot H,~ \tilde{C} = (c_g + r_c) \cdot G + c_h \cdot H$
+
+$\}$
+
+This performs set membership, proves possession of the private keys (so if the transcript is bound to the spend, performs spend authorization), and proves the linking tag is of the expected form (providing linkability).
+
+We split this into two independent statements, augmented as necessary for composition into a statement functionally equivalent to the original.
+
+\newpage
 
 \subsection{New Membership Proof}
 
@@ -80,11 +101,37 @@ while only publishing $\tilde{O}, \tilde{I}, \tilde{C}, R$ (the 'input tuple').
 
 This does not require knowledge of $x, y$ (nor the opening of the Pedersen commitment $C$) and accordingly can be produced by any party trusted with sender privacy. Exactly how this membership proof occurs is left as a black box to the rest of these designs, yet further specified later.
 
-\newpage
+The typed statement is as follows.
+
+$\{$
+
+$~~G, T, U, V \in \mathbb{G}, \tilde{O}, \tilde{I}, R, \tilde{C} \in \mathbb{G},~ \mathsf{OutputSet} \in (\mathbb{G}, \mathbb{G}, \mathbb{G})^n;$
+
+$~~O, I, C \in \mathbb{G}, r_o, r_i, r_j, r_c \in \mathbb{Z} ~|$
+
+$~~(O, I, C) \in \mathsf{OutputSet},~$
+
+$~~\tilde{O} = O + r_o \cdot T,~ \tilde{I} = I + r_i \cdot U,~ R = r_i \cdot V + r_j \cdot T,~ \tilde{C} = C + r_c \cdot G$
+
+$\}$
 
 \subsection{New Spend Authorization and Linkability Proof}
 
 For an input tuple $\tilde{O}, \tilde{I}, \tilde{C}, R$, and linking tag $L$, prove knowledge of $x, y', r_i$ such that $\tilde{O} = x \cdot G + y' \cdot T, R = r_i \cdot V + r_j \cdot T, \tilde{I} = I + r_i \cdot U$, and $L = x \cdot I$ (while binding to the transaction hash). To be explicit, $y' = y + r_o$.
+
+The typed statement is as follows.
+
+$\{$
+
+$~~G, T, U, V \in \mathbb{G}, \tilde{O}, \tilde{I}, R, L, \in \mathbb{G},~ S \in (\mathbb{G}, \mathbb{G}, \mathbb{G})^n;$
+
+$~~x, y', r_i, r_j \in \mathbb{Z} ~|$
+
+$~~\tilde{O} = x \cdot G + y' \cdot T,~ R = r_i \cdot V + r_j \cdot T,~ L = x \cdot \tilde{I} - (x * r_i) \cdot U$
+
+$\}$
+
+\
 
 We instantiate this literally with a Bulletproof+ (https://eprint.iacr.org/2020/735) composed with a Generalized Schnorr Protocol (https://eprint.iacr.org/2009/050).
 
