@@ -327,7 +327,7 @@ This defines a carried multiplication of $L_i - m$, which will be $0$ if and onl
 
 \subsubsection{On Curve}
 
-\newcommand{\oncurve}{\mathsf{OnCurve_{a,b,c}}}
+\newcommand{\oncurve}{\mathsf{OnCurve_{a,b}}}
 
 $\oncurve(x, y) \rightarrow$
 
@@ -441,9 +441,9 @@ $\dloglhs(d_y, d_{yx_{0..m}}, d_{x_{1..n}}, d_0, \delta, \chl) \rightarrow$
 
 $~~p_{0_{n_0}} = (3 * \chl\mathsf{.x}^2 + a) / (2 * \chl\mathsf{.y})$
 
-$~~p_{0_{n_1}} = \sum^m_{j=0} (p_{0_{n_0}} * x^{j+1}) * d_{yx_j} + (p_{0_{n_0}} * d_y)$
+$~~p_{0_{n_1}} = \sum^m_{j=0} (p_{0_{n_0}} * \chl\mathsf{.x}^{j+1}) * d_{yx_j} + (p_{0_{n_0}} * d_y)$
 
-$~~p_{0_{n_2}} = y * d_{yx_0} + \sum^m_{j=1} ((j+1) * y * x^j) * d_{yx_j} + \sum^n_{i=1} ((i+1) * x^i) * d_{x_i} + 1$
+$~~p_{0_{n_2}} = \chl\mathsf{.y} * d_{yx_0} + \sum^m_{j=1} ((j+1) * \chl\mathsf{.y} * \chl\mathsf{.x}^j) * d_{yx_j} + \sum^n_{i=1} ((i+1) * \chl\mathsf{.x}^i) * d_{x_i} + 1$
 
 $~~p_{0_n} = p_{0_{n_1}} + p_{0_{n_2}}$
 
