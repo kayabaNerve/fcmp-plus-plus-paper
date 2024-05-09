@@ -129,14 +129,14 @@
 	The following proof naturally enables proving scalar multiplications via double-and-add.
 
 	$$
-	\{~ G, P \in E, s \in F^k ~|~ \sum^k_{i=0} P = s_i \cdot (2^i \cdot G) ~\}
+	\{~ G, P \in E, s \in F^k ~|~ P =  \sum^k_{i=0} s_i \cdot (2^i \cdot G) ~\}
 	$$
 	
 	Please note $s$ may be a non-canonical representation of the scalar. Assuming $G, H \in E$ of the same prime order, a proof for $(s,~ G=G)$ and a proof for $(s,~ G=H)$ will prove for a consistent scalar however.
 	
 	\begin{enumerate}
 		\item The prover and verifier calculate $\forall~ 0 <= i < k:~ G_i = 2^i \cdot G$.
-		\item The prover and verifier perform the sum-proof protocol where the summed list contains $-P$ and $s_i$ instances of $G_i$ (for a list length of $1 + \sum^n_{i=0} s_i$).
+		\item The prover and verifier perform the sum-proof protocol where the summed list contains $-P$ and $s_i$ instances of $G_i$ (for a list length of $1 + \sum^k_{i=0} s_i$).
 	\end{enumerate}
 
 	This allows proving a $k$-bit scalar multiplication with a $1 + k$ length list. A prover who malleates $s$ from a bitstring will have a longer list/divisor, yet the verifier may bound $m, o$ since there's an upper-bound on the necessary length of the list for a $k$-bit scalar.
