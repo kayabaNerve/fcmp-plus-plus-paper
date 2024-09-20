@@ -65,13 +65,13 @@ $\{$
 
 $~~G, H \in \mathbb{G}, \tilde{C}, L \in \mathbb{G}, S \in (\mathbb{G}, \mathbb{G}, \mathbb{G})^n;$
 
-$~~O, I, C \in \mathbb{G}, x, c_g, c_h, r_c \in \mathbb{Z} ~|$
+$~~O, I, C \in \mathbb{G}, x, c_g, c_h, r_c \in \mathbb{F} ~|$
 
 $~~(O, I, C) \in S,~$
 
 $~~O = x \cdot G,~ L = x \cdot I,$
 
-$~~C = c_g \cdot G + c_h \cdot H,~ \tilde{C} = (c_g + r_c) \cdot G + c_h \cdot H$
+$~~\tilde{C} = (c_g + r_c) \cdot G + c_h \cdot H$
 
 $\}$
 
@@ -107,7 +107,7 @@ $\{$
 
 $~~G, T, U, V \in \mathbb{G}, \tilde{O}, \tilde{I}, R, \tilde{C} \in \mathbb{G},~ \mathsf{OutputSet} \in (\mathbb{G}, \mathbb{G}, \mathbb{G})^n;$
 
-$~~O, I, C \in \mathbb{G}, r_o, r_i, r_j, r_c \in \mathbb{Z} ~|$
+$~~O, I, C \in \mathbb{G}, r_o, r_i, r_j, r_c \in \mathbb{F} ~|$
 
 $~~(O, I, C) \in \mathsf{OutputSet},~$
 
@@ -125,7 +125,7 @@ $\{$
 
 $~~G, T, U, V \in \mathbb{G}, \tilde{O}, \tilde{I}, R, L, \in \mathbb{G};$
 
-$~~x, y', r_i, r_j \in \mathbb{Z} ~|$
+$~~x, y', r_i, r_j \in \mathbb{F} ~|$
 
 $~~\tilde{O} = x \cdot G + y' \cdot T,~ R = r_i \cdot V + r_j \cdot T,~ L = x \cdot \tilde{I} - (x * r_i) \cdot U$
 
@@ -146,7 +146,7 @@ We start by inlining the math for the Bulletproof+ Weighted-Inner Product proof 
 		
 		This is the $P$ from the statement of Bulletproof+'s weighted-inner-product proof for $\boldsymbol{g} = [G], \boldsymbol{h} = [V], g = U, h = T$ (in its own notation).
 		\item
-		$A = \alpha \cdot G + \beta \cdot V + ((\alpha * y) + (\beta * x)) \cdot U + \delta \cdot T$
+		$A = \alpha \cdot G + \beta \cdot V + ((\alpha * r_i) + (\beta * x)) \cdot U + \delta \cdot T$
 		\item
 		$B = (\alpha * \beta) \cdot U + \mu \cdot T$
 	\end{itemize}
