@@ -494,7 +494,7 @@ $~~p_{0_{n_2}} = \chl\mathsf{.y} * d_{yx_0} + \sum^m_{j=1} ((j+1) * \chl\mathsf{
 
 $~~p_{0_n} = p_{0_{n_1}} + p_{0_{n_2}}$
 
-$~~p_{0_d} = \chl\mathsf{.y} * d_y + \sum^m_{i=0} (\chl\mathsf{.y} * \chl\mathsf{.x}^{(i+1)}) * d_{xy_{i}} + \sum^n_{i=1} \chl\mathsf{.x}^{(i+1)} * d_{x_{i}} + 1 * \chl\mathsf{.x} + 1 * d_0$
+$~~p_{0_d} = \chl\mathsf{.y} * d_y + \sum^m_{i=0} (\chl\mathsf{.y} * \chl\mathsf{.x}^{(i+1)}) * d_{yx_{i}} + \sum^n_{i=1} \chl\mathsf{.x}^{(i+1)} * d_{x_{i}} + 1 * \chl\mathsf{.x} + 1 * d_0$
 
 $~~p_{1_n} = 2 * \chl\mathsf{.y}$
 
@@ -544,9 +544,9 @@ $~~\delta = (\chl_1\mathsf{.y} - \chl_0\mathsf{.y}) * (\chl_1\mathsf{.x} - \chl_
 
 $~~\mu = \chl_0\mathsf{.y} - (\delta * \chl_0\mathsf{.x})$
 
-$~~f = \inverse(\mu - (-y + (\delta * ~x)))$
+$~~f = \inverse(\mu - (-y - (\delta * ~x)))$
 
-$~~\equality(\sum^2_{i=0} \dloglhs(d_y, d_{yx}, d_x, d_0, \delta, \chl_i), \sum^{255}_{i=0} (\mu ~-~ (G_i\mathsf{.y} ~+~ (\delta ~*~ G_i\mathsf{.x})))^{-1} ~*~ s_i ~+~ 1 ~f)$
+$~~\equality(\sum^2_{i=0} \dloglhs(d_y, d_{yx}, d_x, d_0, \delta, \chl_i), \sum^{255}_{i=0} (\mu ~-~ (G_i\mathsf{.y} ~-~ (\delta ~*~ G_i\mathsf{.x})))^{-1} ~*~ s_i ~+~ 1 ~f)$
 
 \
 
