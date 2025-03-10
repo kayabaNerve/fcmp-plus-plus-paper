@@ -32,8 +32,6 @@ With RingCT, outputs are defined as $O = x \cdot G$ with the linking tag defined
 
 Since we cannot re-define the linking tags in an amenable fashion, we re-define the output key. We introduce a new generator, $T$, re-define output keys as $O = x \cdot G + y \cdot T$ (where $y = 0$ for all existing outputs), and preserve the linking tag definition of $x \cdot \hashtopoint(O)$. This causes all existing outputs to maintain their linking tags while giving us a term to re-randomize.
 
-\newpage
-
 \section{Proof Separation}
 
 Seraphis defines four distinct proofs.
@@ -77,9 +75,23 @@ $\}$
 
 This performs set membership, proves possession of the private keys (so if the transcript is bound to the spend, performs spend authorization), and proves the linking tag is of the expected form (providing linkability).
 
-We split this into two independent statements, augmented as necessary for composition into a statement functionally equivalent to the original.
+We replace this with a composition proving the following statement.
 
-\newpage
+$\{$
+
+$~~G, H, T \in \mathbb{G}, \tilde{C}, L \in \mathbb{G}, S \in (\mathbb{G}, \mathbb{G}, \mathbb{G})^n;$
+
+$~~O, I, C \in \mathbb{G}, x, y, r_c \in \mathbb{F} ~|$
+
+$~~(O, I, C) \in S,~$
+
+$~~O = x \cdot G + y \cdot T,~ L = x \cdot I,$
+
+$~~\tilde{C} = C + (r_c \cdot G)$
+
+$\}$
+
+A $y$ term is introduced, which is $0$ for all prior witnesses. $C$ is no longer opened, solely re-randomized ($C$ uses $G$ for blinding and $H$ for binding, contrary to popular convention). This is accepted as the $C$ terms present in the set are already known to be well-formed (over $G$ and $H$) and the prover does prove with the Balance Proof their $C$ terms' values' sum is the value spent by the transaction.
 
 \subsection{New Membership Proof}
 
@@ -231,9 +243,7 @@ We now compose this with a Generalized Schnorr Protocol to:
 	\end{itemize}
 \end{enumerate}
 
-In the future, we should review specialized proofs. It would not be surprising if $s_x$ can be replaced for just $s_\alpha$, along with a few other similar tweaks.
-
-\newpage
+This design was proven secure, and optimized, in https://github.com/cypherstack/fcmp-review.
 
 \section{Membership Proof}
 
@@ -681,8 +691,6 @@ An adversary with a discrete log oracle also cannot distinguish between an unspe
 Since the membership proof does not require knowledge of $x, y$, the membership proof can be produced after the transaction itself is signed. This would let Alice and Bob form a 2-of-2 multisig, sign a transaction spending an output sent to it (per some mutually known blinding factors), then let Alice or Bob create that output, and once it's past the 10-block lock, publish the transaction spending it without the other party's participation.
 
 We do have to ensure the message the Generalized Schnorr Protocol signs isn't binding to the membership proof however.
-
-\newpage
 
 \section{Integration}
 
