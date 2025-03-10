@@ -235,7 +235,7 @@ In the future, we should review specialized proofs. It would not be surprising i
 
 \newpage
 
-\section{The Literal Membership Proof}
+\section{Membership Proof}
 
 With the proofs separated, and spend authorization satisfied, we still need membership. We prove membership over the entire output set using an arithmetic circuit verifying a Merkle tree proof. Since Merkle tree proofs have O(log n) time complexity, a proof with O(n) complexity still achieves a O(log n) solution to the problem statement.
 
@@ -243,19 +243,17 @@ This makes the requirement a sufficiently performant, zero-knowledge proof for t
 
 \subsection{Arithmetic Circuit Proof}
 
-Bulletproofs are a trustless proof already used within Monero, which can be used to prove arithmetic circuit proofs are satisfied. We solely need a hash function for the Merkle tree, the most efficient being a Pedersen hash.
+Bulletproofs are a trustless proof already used within Monero, which can be used to prove arithmetic circuit proofs are satisfied. We solely need a hash function for the Merkle tree, the most efficient for our use-case being a Pedersen hash.
 
 A Pedersen hash is a collision-resistant hash where for each word hashed, an additional term is added to a Pedersen Vector Commitment. Finding a collision implies finding the discrete log relationship of the generators used.
 
-Creating Pedersen hashes in-circuit would be too expensive. Bulletproofs offer arithmetic over the scalar field of the curve, yet Pedersen hashes produce an output over the field the curve is defined over. Accordingly, it'd require non-native arithmetic. If we instead use an elliptic curve whose scalar field is the field of the curve we're performing the hash with (an 'embedded' or 'towered' curve), we'd have a cost of 256 in-circuit multiplications per word hashed (for a 256-bit elliptic curve).
+Creating Pedersen hashes in-circuit would be suboptimal. Even with native arithmetic, by having the Bulletproof be proven over a curve whose scalar field is the field of the curve the hash is performed over, we'd have a cost of \~10 in-circuit multiplications per word hashed.
 
-We instead use Generalized Bulletproofs, a modification to Bulletproofs recently proven secure.
+We instead use Generalized Bulletproofs, a modification to Bulletproofs recently proven secure: https://github.com/cypherstack/generalized-bulletproofs
 
-https://github.com/cypherstack/generalized-bulletproofs
+Generalized Bulletproofs can be used to output Pedersen hashes at effectively no additional cost, although it cannot operate over its hashes (and we do need to operate over a series of hashes, due to utilizing a Merkle tree). We solve this by operating over output hashes with a new Generalized Bulletproof, this one on a curve whose scalar field is the prior curve's field. This continues for each layer of the Merkle tree, and is most efficiently realizable with a curve cycle (a curve whose scalar field is the field of a curve whose scalar field is the field for the original curve). With a curve cycle, one can alternate between the two curves (and two proofs) without needing additional curves/proofs per layer.
 
-Generalized Bulletproofs can be used to output Pedersen hashes at effectively no additional cost, although it cannot operate over its hashes (and we do need to operate over a series of hashes, due to discussing a Merkle tree). We solve this by operating over output hashes with a new Generalized Bulletproof, this one on a curve whose scalar field is the prior curve's field. This continues for each layer of the Merkle tree, and is most efficiently realizable with a curve cycle (a curve whose scalar field is the field of a curve whose scalar field is the field for the original curve). With a curve cycle, one can alternate between the two curves (and two proofs) without needing additional curves/proofs per layer.
-
-The ability to produce Pedersen hashes also enables forming challenges off partial transcripts of the witness. By defining a Pedersen hash of the first $n$ variables within the circuit, we can hash that outside of the circuit with a traditional hash function to obtain a challenge usable for the rest of the circuit. This allows interactive proofs within the circuit (due to the Fiat-Shamir transform), and with it, more efficient gadgets.
+The ability to produce Pedersen hashes also enables forming challenges off partial transcripts of the witness. By defining a Pedersen hash of a set of variables within the circuit, we can hash that outside of the circuit with a traditional hash function to obtain a challenge usable for the rest of the circuit. This allows interactive proofs within the circuit (due to the Fiat-Shamir transform), and with it, more efficient gadgets.
 
 For the concept of Generalized Bulletproofs, and opening a Merkle tree using Pedersen hashes with a pair of Bulletproofs over a curve cycle in such an efficient manner, please thank the authors of Curve Trees, https://eprint.iacr.org/2022/756. This proposal applies their work to RingCT and performs further optimizations via the usage of divisors, yet does not claim to be novel.
 
@@ -450,9 +448,9 @@ $\tuplememberlist(L, m) \rightarrow$
 
 $~~\forall ~0 <= i < L\mathsf{.length}():$
 
-$~~~~\forall ~0 <= j < :$
+$~~~~\forall ~0 <= j < L_i\mathsf{.length}():$
 
-$~~~~~~L_i = \sum^{L_0\mathsf{.length}()}_{j=0} chl_j * L_{i,j}$
+$~~~~~~L_i = \sum^{L_i\mathsf{.length}()}_{j=0} chl_j * L_{i,j}$
 
 $~~m = \sum^{m\mathsf{.length}()}_{j=0} chl_j * m_j$
 
@@ -606,7 +604,7 @@ $ $
 
 $~~L\circuitin$
 
-$~~\tuplememberlist(L, (o_x, i_x, c_x))$
+$~~\tuplememberlist(L, (o_x, o_y, i_x, i_y, c_x, c_y))$
 
 \subsubsection{Additional Layer}
 
@@ -626,7 +624,23 @@ $~~L\circuitin$
 
 $~~\memberlist(L, h_x)$
 
-Please note $\tilde{H}$ is the prior layer's blinded hash and $H$ is the blinding generator (not the unblinded hash, which is $h_x, h_y$).
+Please note $H$ is the blinding generator for vector commitments on the previous curve (not the unblinded hash, which is $h_x, h_y$).
+
+\subsection{Tying It All Together}
+
+The first layer (performed within a Generalized Bulletproof over the Selene curve) proves knowledge of the existence of $O, I, C$ points before being re-randomized by solely the intended blinding generators for each element, and that $R$ is well-formed. It then proves the points are members of the list hashed into a vector commitment. It does not prove nothing else is hashed into the vector commitment (it doesn't constrain other members of the commitment are equal to zero) as that is unnecessary.
+
+The prover and verifier take the vector commitment, a point on the Selene curve, and add $B_{\mathsf{selene}}$ (a public parameter sampled uniformly from random). The resulting point is passed as $\tilde{H}$ to the $\mathsf{AdditionalLayer}$ gadget within the Generalized Bulletproof over the Helios curve if another layer exists.
+
+$\mathsf{AdditionalLayer}$ proves knowledge of a point $h_x, h_y$ before re-randomizing by solely the intended blinding generator $H$. It then proves the $x$-coordinate is a member of the list hashed into a vector commitment. The prover and verifier take this vector commitment, add $B_{\mathsf{curve}}$, where $\mathsf{curve}$ is the curve the vector commitment is on, and passes the result to the $\mathsf{AdditionalLayer}$ gadget within the Generalized Bulletproof over the reciprocal curve if another layer exists. If this vector commitment is for the root of the Merkle tree, the prover performs a discrete-log proof of knowledge for the difference of their vector commitment and the declared Merkle tree's root over the blinding generator for the vector commitment.
+
+The verifier additionally checks the declared Merkle tree's root is acceptable (on-chain) and that the amount of layers executed is the amount of layers expected for the Merkle tree.
+
+\subsection{On Only Hashing $x$-coordinates Within $\mathsf{AdditionalLayer}$}
+
+At each additional layer, only $x$-coordinates of the vector commitments are hashed for efficiency's sake. This would enable proving that either a branch $\tilde{H}$ is in-tree or its additive inverse, $-\tilde{H}$. We prevent that not by hashing $\tilde{H}$ yet $B_{\mathsf{curve}} + \tilde{H}$. Attempting to prove for $-\tilde{H}$ attempts to prove $B_{\mathsf{curve}} - \tilde{H}$ is in-tree, where $B_{\mathsf{curve}} + \tilde{H}$ and $B_{\mathsf{curve}} - \tilde{H}$ have distinct $x$-coordinates. While there would be an $x$-coordinate collision if $\tilde{H}$ had $2 \cdot B_{\mathsf{curve}}$ subtracted, the Generalized Bulletproof proves knowledge of an opening of $\tilde{H}$ over a specific set of generators (preventing inclusion of $B_{\mathsf{curve}}$ terms).
+
+Credit for the idea of $B_{\mathsf{curve}}$ goes to tevador.
 
 \section{Functionality}
 
@@ -712,14 +726,14 @@ $$
 $$
 
 Add $\mathcal{H}_{tree_c}(([0, 0, 0] * (tree.length() \mod w_a)) + \mathsf{outputs_0.flatten()})$ to the most recently appended branch hash for the leaves. The flatten operation transforms $$[(A, B, C), (D, E, F)]$$ to $$[
-A.x, B.x, C.x,
-D.x, E.x, F.x
+A.x, A.y, B.x, B.y, C.x, C.y,
+D.x, D.y, E.x, E.y, F.x, F.y
 ]$$
 (a series of tuples of points to a series of field elements).
 
-Then, for each $w_a$ chunk of $\mathsf{outputs_1}$, padding the last chunk with $Z$ if incomplete, hash the flattened chunk, appending the resulting hash to the next layer.
+Then, for each $w_a$ chunk of $\mathsf{outputs_1}$, padding the last chunk with $Z$ if incomplete, hash the flattened chunk, add $B_{\mathsf{curve}}$, and append the resulting point to the next layer.
 
-Please note this technically makes the width of the first layer $3 * w_a$, due to considering three field elements (each one word of the hash function) as individual leaves.
+Please note this technically makes the width of the first layer $6 * w_a$, due to considering six field elements (each one word of the hash function) as individual leaves.
 
 For each branch hash modified from $H$ to $H'$, calculate $H'.x - H.x$, the delta. With the proper alignment and chunking, hash the deltas and add the resulting hash to the proper branch hash on the next layer up. New branches are considered modified from $Z$ to $H'$. Repeat until the only hash modified is the new tree's root.
 
@@ -750,18 +764,6 @@ When a block achieves a depth of 10 (the constant 10 being from the 10-block loc
 If an output has a block-based timelock, it is set to be accumulated with the outputs of that block. If an output has a time-based timelock prior to the activation of the FCMP++ hard fork, it is converted to an estimated block-based timelock and accumulated with the outputs of that block. After the FCMP++ hard fork, time-based timelocks will be rejected entirely.
 
 Preserving time-based timelocks would require defining a linked list where upon block addition, we check if we should add the output at the head of the list (and any further outputs) to the tree. Unfortunately, such an implementation would be quite easy to perform denial-of-service attacks against. We could also define a vector, enabling efficient insertion, yet then we must define and maintain an unbounded global list which at best can be bucketed (though we'd need to remove from the head of the list, shifting the bucket(s)). With block-based timelocks, we still have the unbounded list commentary, yet have efficient topics (the block number) and no partial list additions. Accordingly, one is not worth the headache, and one has a tolerable headache.
-
-\subsection{New Linking Tag Definition}
-
-We only hash the $x$ coordinates of $O, I, C$ into the tree. Accordingly, a prover may prove for $O$ or $-O$, as they share an $x$ coordinate. This enables proving for linking tags $L, -L$, which also share an $x$ coordinate. Accordingly, we re-define linking tags from points to just their $x$ coordinates (becoming indifferent to this malleability).
-
-While one of $O$ or $I$ can be negated to produce a negated linking tag, negating $C$ allows proving for a negative amount commitment. Since the negative value will be added to the inputs, this does not allow increasing the Monero spendable (as a negative value added to the outputs would) and is accordingly fine.
-
-Allowing negative branch hashes would allow trivially findable branch collisions if the hash function is a Pedersen vector commitment (which it is). The prover simply proves for the Pedersen vector commitment with negated values. To solve this, we add a constant term with a coefficient of $1$. If a prover attempts to prove for the negated values, they won't be able to negate the constant term and will have a distinct $x$ coordinate resulting. The ability to find a collision now implies a solution to the discrete log problem. Credit for the idea for this constant term's inclusion goes to tevador.
-
-This can be implemented without notable performance impact, outside of the circuit. For an output blinded hash, the constant term is added before the blinded hash is passed to the next layer. This assumes the Bulletproof uses completely distinct generators.
-
-Existing daemons may either perform a migration of all prior linking tags or upon checking if a linking tag is used, additionally check if its additive inverse was spent. Careful handling must be done for this to be safe, as checking if a linking tag is used happens on multiple levels (in the database, in the same potentially applicable block, in the same transaction...). All new linking tags are encoded as points with an even $y$ coordinate (without the sign bit set, equivalent to the encoding of the $x$ coordinate alone).
 
 \subsection{Input Modifications}
 
