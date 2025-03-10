@@ -781,26 +781,15 @@ We define a new RingCT type, $\mathsf{FCMPPlusPlus}$, and with it a new field, $
 
 We extend prunable with a byte-buffer which is of fixed-length with regards to the amount of outputs. This byte buffer is entirely left to Rust to interpret.
 
-This byte buffer contains $p$ Generalized Schnorr Protocols (which don't sufficiently benefit from being merged into a single proof).
+This byte buffer contains one Generalized Schnorr Protocol per input (as they don't sufficiently benefit from being merged into a single proof).
 
-It also contains $n$ Generalized Bulletproofs, which we can structure in two ways.
-
-\begin{itemize}
-	\item
-	We can minimize bandwidth by sending one Generalized Bulletproof. This would practically mean limiting the amount of transaction inputs to potentially as low as four.
-	
-	For context, we limit outputs to sixteen as a transaction with nine outputs has the same amount of computational overhead as a transaction with sixteen outputs. This means for a transaction with nine outputs, we waste seven outputs of computation ($7 * 64$, or $448$, multiplications), For inputs with one Generalized Bulletproof, we'd have the exact same effect, except one input of computation is presumably $3072$ multiplications. This means a single input of wasted computation is as bad as executing Bulletproof range proofs for sixteen outputs, three times over. for no reason at all.
-	
-	With an input limit of four, the most waste which can occur is one input of work by making a three-input transaction.
-	\item
-	We can have no computational overhead by including as many Generalized Bulletproofs as powers of two summed to equal the amount of inputs. For one input, one Generalized Bulletproof. For four inputs, one Generalized Bulletproof. For seven ($4 + 2 + 1$) inputs, three Generalized Bulletproofs. This doesn't waste any performance regarding verification, and roughly makes the expected bandwidth 2.5 kB per two inputs.
-\end{itemize}
+It also contains one Generalized Bulletproof, containing the circuit evaluations for each input. This Generalized Bulletproof must be padded to the nearest power of two, which does computation to be wasted (one Generalized Bulletproof for 9 inputs has the verification cost of 16 inputs). The solution to this is to introduce a fee clawback, as we have for the Bulletproof(+) used to prove the outputs' amount commitments are within range, and an input limit, as we have an output limit.
 
 \subsection{Modifications to Transaction Verification}
 
 $\mathsf{ReferenceBlock}$ is confirmed to be on the best chain and 10-blocks deep. The tree root after applying that block is fetched. The Rust code is called with the tree root, the linking tags, the pseudo-outputs, the byte buffer from RingCT prunable, and the hash of the transaction as used for signing.
 
-As of the most recent hard fork (Bulletproofs+), the only fields from prunable which are hashed when signing are the Bulletproofs. That is maintained. RingCT base is modified to exclude $\mathsf{ReferenceBlock}$ when being serialized for the hash for signing. While this would imply $\mathsf{ReferenceBlock}$ should be placed within prunable, this field cannot be pruned (as it's necessary to evaluate if the transaction should be dropped upon deep reorganization). The lack of hashing it, and malleability regarding the tree used, is explicitly allowed in order to support transaction chaining.
+As of the most recent hard fork (Bulletproofs+), the only fields from prunable which are hashed when signing are the Bulletproofs. Moving forward, no fields from prunable are hashed for the purposes of signing. RingCT base is modified to exclude $\mathsf{ReferenceBlock}$ when being serialized for the hash for signing. While this would imply $\mathsf{ReferenceBlock}$ should be placed within prunable, this field cannot be pruned (as it's necessary to evaluate if the transaction should be dropped upon deep reorganization). The lack of hashing it, and malleability regarding the tree used, is explicitly allowed in order to support transaction chaining.
 
 \subsection{Modifications to Addresses}
 
@@ -834,16 +823,6 @@ Existing Monero multisignature wallets are still usable. We maintain the DKG pro
 
 Multi-party transaction construction isn't modified. The actual signing code is modified. The existing CLSAG code is removed, replaced with either a C++ implementation of multisig OR calls to Rust multisignature code. The latter would involve passing the multisignature wallet key data from C++, re-formatting into a structure the Rust code can work with, and obtaining the preprocesses/signature shares from Rust. The communication and incorporation of those into the signed transaction would occur as prior handled.
 
-\newpage
-
-\section{Future}
-
-Monero can deploy Seraphis, the codebase, in the future. The improvements to transaction construction, and sender-receiver communication (regarding one-time keys and shared secrets), are well-reasoned for Monero and desirable.
-
-Monero can also still deploy Seraphis, the linking tag format, requiring a migration and new addresses. That may offer a better choice of elliptic curves (better choice throughout the project, not just regarding membership). Generalized Bulletproofs, the gadgets described, and the additional layer circuit section would all be used for a deployment of FCMPs with Seraphis. We'd solely have to simplify the first layer circuit section (achieving a roughly 10\% smaller layer, assuming a lack of aggregation of discrete log claims). The usage of Generalized Schnorr Protocols has also been proposed with Seraphis, which would make an implementation of them from this work potentially reusable.
-
-JAMTIS can also still be deployed (over FCMP++s or over Seraphis with FCMPs, as prior planned).
-
-https://gist.github.com/tevador/d4656a217c0177c160b9b6219d9ebb96 details JAMTIS as it would apply to this protocol.
+For a write-up on doing this with CLSAG and the existing monero-wallet crate, please refer to https://gist.github.com/kayabaNerve/3b2c648c623bc4ce4ca288725428ea76.
 
 \end{document}
